@@ -1,0 +1,22 @@
+name = "enku-partners"
+main = "src/index.tsx"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+routes = [
+  { pattern = "partners.enkumeftihe.com", custom_domain = true }
+]
+
+[assets]
+directory = "./public"
+binding = "ASSETS"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "enku-partners-db"
+database_id = "ec974e4f-9d31-4960-ac74-5eff2bf4762b"
+migrations_dir = "migrations"
+
+[vars]
+ENVIRONMENT = "production"
+BASE_URL = "https://partners.enkumeftihe.com"
