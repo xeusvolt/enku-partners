@@ -1,5 +1,10 @@
 # Cloudflare Pages / Workers Environment Variables Template
-SESSION_SECRET=your_32_character_session_signing_secret_here
-SMS_ETHIOPIA_API_KEY=your_sms_ethiopia_api_key_here
+# Copy this file to .dev.vars for local development
+# Configure these variables in production via `wrangler secret put <KEY>`
+
+SESSION_SECRET=
+SMS_ETHIOPIA_API_KEY=
 ENVIRONMENT=development
 BASE_URL=http://localhost:8787
+ADMIN_PHONE=
+ADMIN_PASSWORD=

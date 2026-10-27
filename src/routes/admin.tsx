@@ -3,12 +3,15 @@ import { Hono } from 'hono';
 import { requireAdmin } from '../middleware/auth';
 import { DbClient } from '../db/client';
 import { sendSmsEthiopia } from '../lib/sms';
+import { generateSecureToken } from '../lib/auth';
 import {
   AdminLeadsView,
   AdminPartnersView,
   AdminPartnerCommissionsView,
   AdminPayoutsView,
-  AdminBatchDetailView
+  AdminBatchDetailView,
+  AdminBanksView,
+  AdminPasswordResetsView
 } from '../views/admin_views';
 import type { Env, User, ReferralRoleType } from '../types';
 
@@ -164,19 +167,32 @@ adminRoutes.post('/partners/:id/commissions', async (c) => {
 adminRoutes.get('/payouts', async (c) => {
   const user = c.get('user');
   const message = c.req.query('msg');
+  const dateFrom = c.req.query('date_from') || '';
+  const dateTo = c.req.query('date_to') || '';
   const db = new DbClient(c.env.DB);
 
   const [batches, unpaidReferrals] = await Promise.all([
     db.getAllPayoutBatches(),
-    db.getUnpaidApprovedReferrals()
+    db.getUnpaidApprovedReferrals(dateFrom || undefined, dateTo || undefined)
   ]);
 
-  return c.html(<AdminPayoutsView user={user} batches={batches} unpaidReferrals={unpaidReferrals} message={message} />);
+  return c.html(
+    <AdminPayoutsView
+      user={user}
+      batches={batches}
+      unpaidReferrals={unpaidReferrals}
+      dateFrom={dateFrom}
+      dateTo={dateTo}
+      message={message}
+    />
+  );
 });
 
 adminRoutes.post('/payouts/generate', async (c) => {
   const admin = c.get('user');
   const body = await c.req.parseBody();
+  const dateFrom = String(body['date_from'] || '').trim();
+  const dateTo = String(body['date_to'] || '').trim();
   const db = new DbClient(c.env.DB);
 
   // Handle both single string and array of referral_ids
@@ -187,13 +203,13 @@ adminRoutes.post('/payouts/generate', async (c) => {
   } else if (rawIds) {
     referralIds = [String(rawIds)];
   } else {
-    // If none explicitly selected, fetch all approved unpaid
-    const allUnpaid = await db.getUnpaidApprovedReferrals();
-    referralIds = allUnpaid.map((r) => r.id);
+    // If none explicitly selected, fetch all approved unpaid matching date range
+    const unpaidMatching = await db.getUnpaidApprovedReferrals(dateFrom || undefined, dateTo || undefined);
+    referralIds = unpaidMatching.map((r) => r.id);
   }
 
   if (referralIds.length === 0) {
-    return c.redirect('/admin/payouts?msg=No+approved+unpaid+referrals+available+for+batching.');
+    return c.redirect(`/admin/payouts?date_from=${dateFrom}&date_to=${dateTo}&msg=No+approved+unpaid+referrals+found+in+the+selected+date+range.`);
   }
 
   const batch = await db.createPayoutBatch(admin.id, referralIds);
@@ -210,16 +226,30 @@ adminRoutes.get('/payouts/:batchId', async (c) => {
   const message = c.req.query('msg');
   const db = new DbClient(c.env.DB);
 
-  const [batch, items] = await Promise.all([
+  const [batch, groupedItems] = await Promise.all([
     db.getPayoutBatchById(batchId),
-    db.getPayoutBatchItems(batchId)
+    db.getPayoutBatchGroupedItems(batchId)
   ]);
 
   if (!batch) {
     return c.redirect('/admin/payouts?msg=Payout+batch+not+found.');
   }
 
-  return c.html(<AdminBatchDetailView user={user} batch={batch} items={items} message={message} />);
+  return c.html(<AdminBatchDetailView user={user} batch={batch} groupedItems={groupedItems} message={message} />);
+});
+
+/**
+ * REJECT PARTNER GROUP:
+ * Reject all leads for a partner from an active batch back to 'unpaid'.
+ */
+adminRoutes.post('/payouts/:batchId/reject-partner/:partnerId', async (c) => {
+  const batchId = c.req.param('batchId');
+  const partnerId = c.req.param('partnerId');
+  const db = new DbClient(c.env.DB);
+
+  await db.rejectPayoutBatchPartnerGroup(partnerId, batchId);
+
+  return c.redirect(`/admin/payouts/${batchId}?msg=Partner+leads+rejected+back+to+unpaid.+Batch+totals+recalculated.`);
 });
 
 /**
@@ -251,16 +281,16 @@ adminRoutes.post('/payouts/:batchId/complete', async (c) => {
 
 /**
  * CSV EXPORT:
- * Outputs banking CSV with required columns:
- * Batch Reference | Partner Name | Phone | Bank Name | Account Holder | Account Number | Amount (ETB)
+ * Outputs banking CSV with aggregated partner rows for bank bulk upload:
+ * Batch Reference | Partner Name | Phone | Bank Name | Account Holder | Account Number | Total Leads | Aggregated Total (ETB)
  */
 adminRoutes.get('/payouts/:batchId/export.csv', async (c) => {
   const batchId = c.req.param('batchId');
   const db = new DbClient(c.env.DB);
 
-  const [batch, items] = await Promise.all([
+  const [batch, groupedItems] = await Promise.all([
     db.getPayoutBatchById(batchId),
-    db.getPayoutBatchItems(batchId)
+    db.getPayoutBatchGroupedItems(batchId)
   ]);
 
   if (!batch) {
@@ -268,21 +298,20 @@ adminRoutes.get('/payouts/:batchId/export.csv', async (c) => {
   }
 
   const csvRows: string[] = [
-    'Batch Reference,Partner Name,Phone,Bank Name,Account Holder,Account Number,Amount (ETB),Role Type,Lead Name'
+    'Batch Reference,Partner Name,Phone,Bank Name,Account Holder,Account Number,Total Leads,Aggregated Total (ETB)'
   ];
 
-  for (const item of items) {
+  for (const item of groupedItems) {
     const clean = (val: string) => `"${(val || '').replace(/"/g, '""')}"`;
     csvRows.push([
-      clean(item.batch_reference),
+      clean(batch.batch_reference),
       clean(item.partner_name),
       clean(item.partner_phone),
       clean(item.bank_name),
       clean(item.account_holder),
       clean(item.account_number),
-      item.amount_etb,
-      clean(item.role_type),
-      clean(item.lead_name)
+      item.lead_count,
+      item.total_amount_etb
     ].join(','));
   }
 
@@ -295,4 +324,134 @@ adminRoutes.get('/payouts/:batchId/export.csv', async (c) => {
       'Content-Disposition': `attachment; filename="${batch.batch_reference}.csv"`
     }
   });
+});
+
+// ============================================================
+// Bank Catalog Management
+// ============================================================
+
+adminRoutes.get('/banks', async (c) => {
+  const user = c.get('user');
+  const message = c.req.query('msg');
+  const error = c.req.query('err');
+  const db = new DbClient(c.env.DB);
+
+  const banks = await db.getAllBanksAdmin();
+  return c.html(<AdminBanksView user={user} banks={banks} message={message} error={error} />);
+});
+
+adminRoutes.post('/banks', async (c) => {
+  const body = await c.req.parseBody();
+  const name = String(body.name || '').trim();
+
+  if (!name) {
+    return c.redirect('/admin/banks?err=Bank+name+cannot+be+empty.');
+  }
+
+  const db = new DbClient(c.env.DB);
+  try {
+    const success = await db.createBank(name);
+    if (!success) {
+      return c.redirect('/admin/banks?err=Failed+to+add+bank.');
+    }
+    return c.redirect('/admin/banks?msg=Bank+added+successfully.');
+  } catch (err: any) {
+    return c.redirect('/admin/banks?err=Bank+already+exists+or+database+error.');
+  }
+});
+
+adminRoutes.post('/banks/:id/edit', async (c) => {
+  const id = parseInt(c.req.param('id'), 10);
+  const body = await c.req.parseBody();
+  const name = String(body.name || '').trim();
+
+  if (!id || !name) {
+    return c.redirect('/admin/banks?err=Invalid+bank+ID+or+empty+name.');
+  }
+
+  const db = new DbClient(c.env.DB);
+  try {
+    const success = await db.updateBankName(id, name);
+    if (!success) {
+      return c.redirect('/admin/banks?err=Bank+not+found+or+no+changes+made.');
+    }
+    return c.redirect('/admin/banks?msg=Bank+name+updated+successfully.');
+  } catch (err: any) {
+    return c.redirect('/admin/banks?err=Bank+name+already+taken.');
+  }
+});
+
+adminRoutes.post('/banks/:id/toggle', async (c) => {
+  const id = parseInt(c.req.param('id'), 10);
+  if (!id) {
+    return c.redirect('/admin/banks?err=Invalid+bank+ID.');
+  }
+
+  const db = new DbClient(c.env.DB);
+  await db.toggleBankStatus(id);
+
+  return c.redirect('/admin/banks?msg=Bank+status+toggled+successfully.');
+});
+
+// ============================================================
+// Password Reset Management
+// ============================================================
+
+adminRoutes.get('/resets', async (c) => {
+  const user = c.get('user');
+  const message = c.req.query('msg');
+  const error = c.req.query('err');
+
+  const db = new DbClient(c.env.DB);
+  const pendingResets = await db.getPendingPasswordResets();
+  const allResets = await db.getAllPasswordResets();
+  const recentResets = allResets.filter((r) => r.status !== 'pending');
+
+  return c.html(
+    <AdminPasswordResetsView
+      user={user}
+      pendingResets={pendingResets}
+      recentResets={recentResets}
+      message={message}
+      error={error}
+    />
+  );
+});
+
+adminRoutes.post('/resets/:id/approve', async (c) => {
+  const id = c.req.param('id');
+  if (!id) {
+    return c.redirect('/admin/resets?err=Invalid+reset+ID.');
+  }
+
+  const db = new DbClient(c.env.DB);
+  const reset = await db.getPasswordResetById(id);
+
+  if (!reset) {
+    return c.redirect('/admin/resets?err=Password+reset+request+not+found.');
+  }
+
+  if (reset.status !== 'pending') {
+    return c.redirect('/admin/resets?err=Request+is+not+in+pending+status.');
+  }
+
+  // 1. Generate cryptographically secure random token (32 bytes = 64 hex chars) via Web Crypto
+  const token = generateSecureToken(32);
+
+  // 2. Set strict 1-hour expiration timestamp
+  const expiresAt = new Date(Date.now() + 3600 * 1000).toISOString();
+
+  // 3. Update database record with approved status and expiration
+  const approved = await db.approvePasswordReset(id, token, expiresAt);
+  if (!approved) {
+    return c.redirect('/admin/resets?err=Failed+to+approve+password+reset.');
+  }
+
+  // 4. Dispatch SMS notification via SMS Ethiopia
+  if (reset.user_phone) {
+    const smsText = `Reset your Enku Partners password here: https://partners.enkumeftihe.com/reset?token=${token}`;
+    await sendSmsEthiopia(reset.user_phone, smsText, c.env.SMS_ETHIOPIA_API_KEY);
+  }
+
+  return c.redirect('/admin/resets?msg=Password+reset+request+approved+and+SMS+dispatched+successfully.');
 });

@@ -10,10 +10,7 @@ export const SESSION_COOKIE_NAME = 'enku_session';
 export function getSessionSecret(c: Context<any>): string {
   const secret = c.env?.SESSION_SECRET;
   if (!secret) {
-    if (c.env?.ENVIRONMENT === 'production') {
-      throw new Error('FATAL SECURITY ERROR: SESSION_SECRET binding is required in production.');
-    }
-    return 'enku_partners_dev_super_secret_session_key_min_32_bytes_2026_x';
+    throw new Error('FATAL SECURITY ERROR: SESSION_SECRET binding is required.');
   }
   return secret;
 }
@@ -79,11 +76,14 @@ export async function requirePartner(c: Context<{ Bindings: Env; Variables: { us
 export async function requireAdmin(c: Context<{ Bindings: Env; Variables: { user: User } }>, next: Next) {
   const user = await getCurrentUser(c);
   if (!user) {
+    if (c.req.method !== 'GET') {
+      return c.text('Unauthorized: Valid session required.', 401);
+    }
     return c.redirect('/login');
   }
 
   if (user.role !== 'admin') {
-    return c.redirect('/partner');
+    return c.text('Forbidden: Administrator privileges required.', 403);
   }
 
   c.set('user', user);

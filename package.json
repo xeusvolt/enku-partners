@@ -12,9 +12,8 @@
     "deploy": "npm run css:build && wrangler deploy",
     "db:migrate:local": "wrangler d1 migrations apply enku-partners-db --local",
     "db:migrate:remote": "wrangler d1 migrations apply enku-partners-db --remote",
-    "seed:admin:local": "tsx scripts/seed_admin.ts --local",
-    "seed:admin:remote": "tsx scripts/seed_admin.ts --remote",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "hono": "^4.6.14"
@@ -26,6 +25,7 @@
     "tailwindcss": "^4.0.9",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
+    "vitest": "^5.0.5",
     "wrangler": "^3.90.0"
   }
 }

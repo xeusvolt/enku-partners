@@ -20,10 +20,10 @@ partnerRoutes.get('/', async (c) => {
   const user = c.get('user');
   const db = new DbClient(c.env.DB);
 
-  const [stats, bankDetails, referrals] = await Promise.all([
+  const [stats, bankDetails, activeReferrals] = await Promise.all([
     db.getPartnerStats(user.id),
     db.getPartnerBankDetails(user.id),
-    db.getPartnerReferrals(user.id)
+    db.getPartnerActiveReferrals(user.id)
   ]);
 
   const message = c.req.query('msg');
@@ -33,7 +33,7 @@ partnerRoutes.get('/', async (c) => {
       user={user}
       stats={stats}
       hasBankDetails={bankDetails !== null}
-      recentReferrals={referrals.slice(0, 10)}
+      recentReferrals={activeReferrals.slice(0, 10)}
       message={message}
     />
   );
@@ -56,6 +56,11 @@ partnerRoutes.post('/leads/new', async (c) => {
 
   if (!fullName) {
     return c.html(<AddLeadView user={user} error="Lead full name is required." formData={formData} />, 400);
+  }
+
+  // Strict XSS Prevention: Reject script tags, HTML tags, or javascript schemes
+  if (/<[^>]*>|javascript:|alert\(|onerror=/i.test(fullName)) {
+    return c.html(<AddLeadView user={user} error="Invalid characters or script tags detected in lead name." formData={formData} />, 400);
   }
 
   if (!['Customer', 'Helper', 'Broker'].includes(roleType)) {
@@ -119,12 +124,13 @@ partnerRoutes.get('/earnings', async (c) => {
   const user = c.get('user');
   const db = new DbClient(c.env.DB);
 
-  const [stats, referrals] = await Promise.all([
+  const [stats, referrals, paymentHistory] = await Promise.all([
     db.getPartnerStats(user.id),
-    db.getPartnerReferrals(user.id)
+    db.getPartnerReferrals(user.id),
+    db.getPartnerPaymentHistory(user.id)
   ]);
 
-  return c.html(<EarningsView user={user} stats={stats} referrals={referrals} />);
+  return c.html(<EarningsView user={user} stats={stats} referrals={referrals} paymentHistory={paymentHistory} />);
 });
 
 partnerRoutes.get('/profile', async (c) => {
@@ -163,6 +169,13 @@ partnerRoutes.post('/profile/bank', async (c) => {
   }
 
   const db = new DbClient(c.env.DB);
+  const activeBanks = await db.getBanks();
+  const isBankValidAndActive = activeBanks.some((b) => b.id === bankId);
+
+  if (!isBankValidAndActive) {
+    return c.redirect('/partner/profile?err=Selected+bank+is+invalid+or+currently+disabled.');
+  }
+
   await db.upsertPartnerBankDetails(user.id, bankId, accountNumber, accountHolderName);
 
   return c.redirect('/partner/profile?msg=Bank+details+saved+successfully.');

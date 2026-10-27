@@ -77,6 +77,31 @@ export async function verifyPassword(password: string, storedHash: string): Prom
   return result === 0;
 }
 
+/**
+ * Constant-time string equality comparison to prevent timing attacks.
+ */
+export function timingSafeEqualStr(a: string, b: string): boolean {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  let result = a.length === b.length ? 0 : 1;
+  const maxLen = Math.max(a.length, b.length);
+  for (let i = 0; i < maxLen; i++) {
+    const charA = i < a.length ? a.charCodeAt(i) : 0;
+    const charB = i < b.length ? b.charCodeAt(i) : 0;
+    result |= charA ^ charB;
+  }
+  return result === 0;
+}
+
+/**
+ * Generates a cryptographically secure random token using Web Crypto API.
+ * Default 32 bytes = 256 bits of cryptographic entropy = 64 hex characters.
+ */
+export function generateSecureToken(bytes = 32): string {
+  const buf = new Uint8Array(bytes);
+  crypto.getRandomValues(buf);
+  return toHex(buf);
+}
+
 // ============================================================
 // Signed Session Management
 // ============================================================

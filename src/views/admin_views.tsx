@@ -1,7 +1,7 @@
 // Admin Workspace Views — Executive Monochrome Multi-Column Design
 import type { FC } from 'hono/jsx';
 import { BaseLayout } from './layout';
-import type { User, Referral, PayoutBatch, PayoutBatchItem, PartnerCommissionRate } from '../types';
+import type { User, Referral, PayoutBatch, PayoutBatchItem, PayoutBatchGroupedItem, PartnerCommissionRate, Bank, PasswordReset } from '../types';
 import { formatEthiopianPhoneDisplay } from '../lib/phone';
 
 interface AdminLeadsViewProps {
@@ -23,10 +23,10 @@ export const AdminLeadsView: FC<AdminLeadsViewProps> = ({ user, leads, currentFi
 
           <div class="flex items-center space-x-2">
             <span class="text-xs text-[#888888]">Filter:</span>
-            <div class="inline-flex rounded border border-[#262626] bg-[#0A0A0A] p-0.5 text-xs">
+            <div class="inline-flex rounded-full border border-[#262626] bg-[#0A0A0A] p-1 text-xs">
               <a
                 href="/admin/leads?status="
-                class={`px-3 py-1 rounded transition-colors ${
+                class={`px-3.5 py-1 rounded-full transition-colors ${
                   !currentFilter ? 'bg-white text-black font-semibold' : 'text-[#888888] hover:text-white'
                 }`}
               >
@@ -34,7 +34,7 @@ export const AdminLeadsView: FC<AdminLeadsViewProps> = ({ user, leads, currentFi
               </a>
               <a
                 href="/admin/leads?status=pending"
-                class={`px-3 py-1 rounded transition-colors ${
+                class={`px-3.5 py-1 rounded-full transition-colors ${
                   currentFilter === 'pending' ? 'bg-white text-black font-semibold' : 'text-[#888888] hover:text-white'
                 }`}
               >
@@ -42,7 +42,7 @@ export const AdminLeadsView: FC<AdminLeadsViewProps> = ({ user, leads, currentFi
               </a>
               <a
                 href="/admin/leads?status=approved"
-                class={`px-3 py-1 rounded transition-colors ${
+                class={`px-3.5 py-1 rounded-full transition-colors ${
                   currentFilter === 'approved' ? 'bg-white text-black font-semibold' : 'text-[#888888] hover:text-white'
                 }`}
               >
@@ -50,7 +50,7 @@ export const AdminLeadsView: FC<AdminLeadsViewProps> = ({ user, leads, currentFi
               </a>
               <a
                 href="/admin/leads?status=rejected"
-                class={`px-3 py-1 rounded transition-colors ${
+                class={`px-3.5 py-1 rounded-full transition-colors ${
                   currentFilter === 'rejected' ? 'bg-white text-black font-semibold' : 'text-[#888888] hover:text-white'
                 }`}
               >
@@ -61,24 +61,24 @@ export const AdminLeadsView: FC<AdminLeadsViewProps> = ({ user, leads, currentFi
         </div>
 
         {message && (
-          <div class="p-3 bg-[#161616] border border-white/20 rounded text-xs text-white">
+          <div class="p-3.5 bg-[#161616] border border-white/20 rounded-xl text-xs text-white">
             {message}
           </div>
         )}
 
-        <div class="bg-[#0A0A0A] border border-[#262626] rounded-lg overflow-hidden shadow-2xl">
+        <div class="bg-[#0A0A0A] border border-[#262626] rounded-2xl overflow-hidden shadow-2xl">
           <div class="overflow-x-auto">
             <table class="w-full text-left text-xs border-collapse">
               <thead>
                 <tr class="border-b border-[#262626] bg-[#121212] text-[#888888] uppercase tracking-wider font-semibold text-[10px]">
-                  <th class="py-3 px-4">Lead Name & Phone</th>
-                  <th class="py-3 px-4">Role Type</th>
-                  <th class="py-3 px-4">Referring Partner</th>
-                  <th class="py-3 px-4">Submitted</th>
-                  <th class="py-3 px-4">Commission</th>
-                  <th class="py-3 px-4">Status</th>
-                  <th class="py-3 px-4">Payout</th>
-                  <th class="py-3 px-4 text-right">Actions</th>
+                  <th class="py-3.5 px-4">Lead Name & Phone</th>
+                  <th class="py-3.5 px-4">Role Type</th>
+                  <th class="py-3.5 px-4">Referring Partner</th>
+                  <th class="py-3.5 px-4">Submitted</th>
+                  <th class="py-3.5 px-4">Commission</th>
+                  <th class="py-3.5 px-4">Status</th>
+                  <th class="py-3.5 px-4">Payout</th>
+                  <th class="py-3.5 px-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-[#1A1A1A]">
@@ -96,7 +96,7 @@ export const AdminLeadsView: FC<AdminLeadsViewProps> = ({ user, leads, currentFi
                         <span class="font-mono text-[#888888] text-[11px]">{formatEthiopianPhoneDisplay(l.phone_number)}</span>
                       </td>
                       <td class="py-3.5 px-4">
-                        <span class="inline-block text-[10px] uppercase tracking-wider px-2 py-0.5 rounded border border-[#333333] text-white">
+                        <span class="inline-block text-[10px] uppercase tracking-wider px-2.5 py-0.5 rounded-full border border-[#333333] text-white">
                           {l.role_type}
                         </span>
                       </td>
@@ -114,28 +114,28 @@ export const AdminLeadsView: FC<AdminLeadsViewProps> = ({ user, leads, currentFi
                       </td>
                       <td class="py-3.5 px-4">
                         {l.status === 'pending' && (
-                          <span class="px-2 py-0.5 rounded text-[10px] uppercase tracking-wider border border-[#333333] text-[#A1A1AA]">
+                          <span class="px-2.5 py-0.5 rounded-full text-[10px] uppercase tracking-wider border border-[#333333] text-[#A1A1AA]">
                             Pending
                           </span>
                         )}
                         {l.status === 'approved' && (
-                          <span class="px-2 py-0.5 rounded text-[10px] uppercase tracking-wider border border-white text-white font-medium">
+                          <span class="px-2.5 py-0.5 rounded-full text-[10px] uppercase tracking-wider border border-white text-white font-medium">
                             Approved
                           </span>
                         )}
                         {l.status === 'rejected' && (
-                          <span class="px-2 py-0.5 rounded text-[10px] uppercase tracking-wider bg-[#1C1C1C] text-[#666666]">
+                          <span class="px-2.5 py-0.5 rounded-full text-[10px] uppercase tracking-wider bg-[#1C1C1C] text-[#666666]">
                             Rejected
                           </span>
                         )}
                       </td>
                       <td class="py-3.5 px-4">
                         {l.payout_status === 'paid' ? (
-                          <span class="px-2 py-0.5 rounded text-[10px] uppercase tracking-wider bg-white text-black font-semibold">
+                          <span class="px-2.5 py-0.5 rounded-full text-[10px] uppercase tracking-wider bg-white text-black font-semibold">
                             Paid
                           </span>
                         ) : l.payout_status === 'processing' ? (
-                          <span class="px-2 py-0.5 rounded text-[10px] uppercase tracking-wider border border-white/60 text-white">
+                          <span class="px-2.5 py-0.5 rounded-full text-[10px] uppercase tracking-wider border border-white/60 text-white">
                             Processing
                           </span>
                         ) : (
@@ -145,10 +145,17 @@ export const AdminLeadsView: FC<AdminLeadsViewProps> = ({ user, leads, currentFi
                       <td class="py-3.5 px-4 text-right">
                         {l.status === 'pending' ? (
                           <div class="flex items-center justify-end space-x-2">
-                            <form action={`/admin/leads/${l.id}/approve`} method="post" class="inline">
+                            <form
+                              action={`/admin/leads/${l.id}/approve`}
+                              method="post"
+                              class="inline"
+                              data-confirm={`CONFIRM LEAD APPROVAL:\n\nAre you sure you want to approve referral lead for "${l.full_name}"?\nThis locks the commission rate into the payout ledger.`}
+                              data-confirm-title="Confirm Lead Approval"
+                              data-confirm-subtitle="Lock immutable commission rate"
+                            >
                               <button
                                 type="submit"
-                                class="px-2.5 py-1 bg-white text-black font-semibold text-[11px] uppercase tracking-wider rounded hover:bg-[#EAEAEA] active:scale-95 transition-all"
+                                class="px-4 py-1.5 bg-white text-black font-bold text-[11px] uppercase tracking-wider rounded-full hover:bg-[#EAEAEA] active:scale-95 transition-all shadow-sm"
                               >
                                 Approve
                               </button>
@@ -156,7 +163,7 @@ export const AdminLeadsView: FC<AdminLeadsViewProps> = ({ user, leads, currentFi
                             <form action={`/admin/leads/${l.id}/reject`} method="post" class="inline">
                               <button
                                 type="submit"
-                                class="px-2.5 py-1 border border-[#333333] text-[#888888] hover:text-white hover:border-[#555555] text-[11px] uppercase tracking-wider rounded active:scale-95 transition-all"
+                                class="px-4 py-1.5 border border-[#333333] text-[#888888] hover:text-white hover:border-[#555555] text-[11px] font-semibold uppercase tracking-wider rounded-full active:scale-95 transition-all"
                               >
                                 Reject
                               </button>
@@ -197,7 +204,7 @@ export const AdminPartnersView: FC<AdminPartnersViewProps> = ({ user, partners, 
         </div>
 
         {message && (
-          <div class="p-3 bg-[#161616] border border-white/20 rounded text-xs text-white">
+          <div class="p-3.5 bg-[#161616] border border-white/20 rounded-xl text-xs text-white">
             {message}
           </div>
         )}
@@ -212,7 +219,7 @@ export const AdminPartnersView: FC<AdminPartnersViewProps> = ({ user, partners, 
               </h2>
             </div>
 
-            <div class="bg-[#0A0A0A] border border-[#262626] rounded-lg overflow-hidden shadow-2xl">
+            <div class="bg-[#0A0A0A] border border-[#262626] rounded-2xl overflow-hidden shadow-2xl">
               <table class="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr class="border-b border-[#262626] bg-[#121212] text-[#888888] uppercase tracking-wider font-semibold text-[10px]">
@@ -243,7 +250,7 @@ export const AdminPartnersView: FC<AdminPartnersViewProps> = ({ user, partners, 
                           <form action={`/admin/partners/${p.id}/approve`} method="post" class="inline">
                             <button
                               type="submit"
-                              class="px-3 py-1 bg-white text-black font-semibold text-[11px] uppercase tracking-wider rounded hover:bg-[#EAEAEA] active:scale-95 transition-all"
+                              class="px-4 py-1.5 bg-white text-black font-bold text-[11px] uppercase tracking-wider rounded-full hover:bg-[#EAEAEA] active:scale-95 transition-all shadow-sm"
                             >
                               Approve & SMS
                             </button>
@@ -251,7 +258,7 @@ export const AdminPartnersView: FC<AdminPartnersViewProps> = ({ user, partners, 
                           <form action={`/admin/partners/${p.id}/reject`} method="post" class="inline">
                             <button
                               type="submit"
-                              class="px-3 py-1 border border-[#333333] text-[#888888] hover:text-white text-[11px] uppercase tracking-wider rounded active:scale-95 transition-all"
+                              class="px-4 py-1.5 border border-[#333333] text-[#888888] hover:text-white text-[11px] font-semibold uppercase tracking-wider rounded-full active:scale-95 transition-all"
                             >
                               Reject
                             </button>
@@ -272,7 +279,7 @@ export const AdminPartnersView: FC<AdminPartnersViewProps> = ({ user, partners, 
             Active Affiliate Network ({activeAndOther.length})
           </h2>
 
-          <div class="bg-[#0A0A0A] border border-[#262626] rounded-lg overflow-hidden shadow-2xl">
+          <div class="bg-[#0A0A0A] border border-[#262626] rounded-2xl overflow-hidden shadow-2xl">
             <table class="w-full text-left text-xs border-collapse">
               <thead>
                 <tr class="border-b border-[#262626] bg-[#121212] text-[#888888] uppercase tracking-wider font-semibold text-[10px]">
@@ -301,7 +308,7 @@ export const AdminPartnersView: FC<AdminPartnersViewProps> = ({ user, partners, 
                       </td>
                       <td class="py-3.5 px-4">
                         <span
-                          class={`px-2 py-0.5 rounded text-[10px] uppercase tracking-wider font-medium ${
+                          class={`px-2.5 py-0.5 rounded-full text-[10px] uppercase tracking-wider font-medium ${
                             p.status === 'active'
                               ? 'bg-white text-black'
                               : 'border border-[#333333] text-[#666666]'
@@ -317,14 +324,14 @@ export const AdminPartnersView: FC<AdminPartnersViewProps> = ({ user, partners, 
                         <div class="flex items-center justify-end space-x-2">
                           <a
                             href={`/admin/partners/${p.id}/commissions`}
-                            class="px-2.5 py-1 border border-[#333333] text-[#888888] hover:text-white hover:border-[#555555] rounded text-[11px] uppercase tracking-wider"
+                            class="px-3.5 py-1.5 border border-[#333333] text-[#888888] hover:text-white hover:border-[#555555] rounded-full text-[11px] font-semibold uppercase tracking-wider transition-colors"
                           >
                             Set Rates Matrix
                           </a>
                           <form action={`/admin/partners/${p.id}/toggle-status`} method="post" class="inline">
                             <button
                               type="submit"
-                              class="px-2.5 py-1 border border-[#262626] text-[#666666] hover:text-white rounded text-[11px] uppercase tracking-wider"
+                              class="px-3.5 py-1.5 border border-[#262626] text-[#666666] hover:text-white rounded-full text-[11px] font-semibold uppercase tracking-wider transition-colors"
                             >
                               {p.status === 'active' ? 'Suspend' : 'Activate'}
                             </button>
@@ -372,12 +379,12 @@ export const AdminPartnerCommissionsView: FC<AdminPartnerCommissionsViewProps> =
         </div>
 
         {message && (
-          <div class="p-3 bg-[#161616] border border-white/20 rounded text-xs text-white">
+          <div class="p-3.5 bg-[#161616] border border-white/20 rounded-xl text-xs text-white">
             {message}
           </div>
         )}
 
-        <div class="bg-[#0A0A0A] border border-[#262626] rounded-lg p-6 shadow-2xl">
+        <div class="bg-[#0A0A0A] border border-[#262626] rounded-2xl p-6 shadow-2xl">
           <form action={`/admin/partners/${partner.id}/commissions`} method="post" class="space-y-4">
             <div>
               <label class="block text-xs font-semibold uppercase tracking-wider text-white mb-1">
@@ -390,7 +397,7 @@ export const AdminPartnerCommissionsView: FC<AdminPartnerCommissionsViewProps> =
                   name="rate_customer"
                   value={getRate('Customer')}
                   required
-                  class="w-full px-3.5 py-2.5 bg-[#121212] border border-[#262626] rounded text-sm text-white font-mono focus:outline-none focus:border-white transition-colors"
+                  class="w-full pl-3.5 pr-12 py-2.5 bg-[#121212] border border-[#262626] rounded-xl text-sm text-white font-mono focus:outline-none focus:border-white transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 />
                 <span class="absolute right-3.5 top-2.5 text-xs text-[#888888] font-mono">ETB</span>
               </div>
@@ -408,7 +415,7 @@ export const AdminPartnerCommissionsView: FC<AdminPartnerCommissionsViewProps> =
                   name="rate_helper"
                   value={getRate('Helper')}
                   required
-                  class="w-full px-3.5 py-2.5 bg-[#121212] border border-[#262626] rounded text-sm text-white font-mono focus:outline-none focus:border-white transition-colors"
+                  class="w-full pl-3.5 pr-12 py-2.5 bg-[#121212] border border-[#262626] rounded-xl text-sm text-white font-mono focus:outline-none focus:border-white transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 />
                 <span class="absolute right-3.5 top-2.5 text-xs text-[#888888] font-mono">ETB</span>
               </div>
@@ -426,7 +433,7 @@ export const AdminPartnerCommissionsView: FC<AdminPartnerCommissionsViewProps> =
                   name="rate_broker"
                   value={getRate('Broker')}
                   required
-                  class="w-full px-3.5 py-2.5 bg-[#121212] border border-[#262626] rounded text-sm text-white font-mono focus:outline-none focus:border-white transition-colors"
+                  class="w-full pl-3.5 pr-12 py-2.5 bg-[#121212] border border-[#262626] rounded-xl text-sm text-white font-mono focus:outline-none focus:border-white transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 />
                 <span class="absolute right-3.5 top-2.5 text-xs text-[#888888] font-mono">ETB</span>
               </div>
@@ -436,7 +443,7 @@ export const AdminPartnerCommissionsView: FC<AdminPartnerCommissionsViewProps> =
             <div class="pt-2">
               <button
                 type="submit"
-                class="w-full py-3 bg-white text-black font-semibold text-xs uppercase tracking-wider rounded-lg hover:bg-[#EAEAEA] active:scale-[0.98] transition-all shadow-md"
+                class="w-full py-3.5 px-6 bg-white text-black font-bold text-xs uppercase tracking-wider rounded-full hover:bg-[#EAEAEA] active:scale-[0.98] transition-all shadow-md"
               >
                 Save Commission Matrix
               </button>
@@ -452,6 +459,8 @@ interface AdminPayoutsViewProps {
   user: User;
   batches: PayoutBatch[];
   unpaidReferrals: Referral[];
+  dateFrom?: string;
+  dateTo?: string;
   message?: string;
 }
 
@@ -459,6 +468,8 @@ export const AdminPayoutsView: FC<AdminPayoutsViewProps> = ({
   user,
   batches,
   unpaidReferrals,
+  dateFrom = '',
+  dateTo = '',
   message
 }) => {
   const totalUnpaidAmount = unpaidReferrals.reduce((sum, r) => sum + (r.commission_earned_etb || 0), 0);
@@ -472,13 +483,59 @@ export const AdminPayoutsView: FC<AdminPayoutsViewProps> = ({
         </div>
 
         {message && (
-          <div class="p-3 bg-[#161616] border border-white/20 rounded text-xs text-white">
+          <div class="p-3.5 bg-[#161616] border border-white/20 rounded-xl text-xs text-white">
             {message}
           </div>
         )}
 
+        {/* Section 0: Approval Date Filter Range */}
+        <div class="p-6 bg-[#0A0A0A] border border-[#262626] rounded-2xl shadow-xl">
+          <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+            <div>
+              <h2 class="text-xs font-bold uppercase tracking-wider text-white">Filter Leads by Approval Date</h2>
+              <p class="text-xs text-[#888888] mt-1">Select date bounds to filter approved unpaid commissions for batch generation.</p>
+            </div>
+            <form action="/admin/payouts" method="get" class="flex flex-wrap items-center gap-3">
+              <div>
+                <label class="block text-[10px] uppercase font-semibold text-[#888888] mb-1">Start Date</label>
+                <input
+                  type="date"
+                  name="date_from"
+                  value={dateFrom}
+                  class="px-3 py-2 bg-[#121212] border border-[#262626] rounded-xl text-xs text-white font-mono focus:outline-none focus:border-white transition-colors"
+                />
+              </div>
+              <div>
+                <label class="block text-[10px] uppercase font-semibold text-[#888888] mb-1">End Date</label>
+                <input
+                  type="date"
+                  name="date_to"
+                  value={dateTo}
+                  class="px-3 py-2 bg-[#121212] border border-[#262626] rounded-xl text-xs text-white font-mono focus:outline-none focus:border-white transition-colors"
+                />
+              </div>
+              <div class="flex items-center space-x-2 pt-4 md:pt-0">
+                <button
+                  type="submit"
+                  class="px-5 py-2 bg-white text-black font-bold text-xs uppercase tracking-wider rounded-full hover:bg-[#EAEAEA] active:scale-95 transition-all shadow-sm"
+                >
+                  Filter Leads
+                </button>
+                {(dateFrom || dateTo) && (
+                  <a
+                    href="/admin/payouts"
+                    class="px-4 py-2 border border-[#333333] hover:border-white text-xs font-semibold uppercase tracking-wider rounded-full text-[#888888] hover:text-white transition-colors"
+                  >
+                    Clear Filter
+                  </a>
+                )}
+              </div>
+            </form>
+          </div>
+        </div>
+
         {/* Section 1: Ready for Disbursement */}
-        <div class="p-6 bg-[#0A0A0A] border border-[#262626] rounded-lg shadow-xl">
+        <div class="p-6 bg-[#0A0A0A] border border-[#262626] rounded-2xl shadow-xl">
           <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pb-4 border-b border-[#1E1E1E]">
             <div>
               <span class="text-[11px] font-semibold uppercase tracking-wider text-[#888888]">Pending Disbursement Pool</span>
@@ -486,17 +543,27 @@ export const AdminPayoutsView: FC<AdminPayoutsViewProps> = ({
                 <span class="text-2xl font-bold text-white tracking-tight font-mono">{totalUnpaidAmount.toLocaleString()}</span>
                 <span class="text-xs font-mono text-[#888888]">ETB</span>
               </div>
-              <span class="text-xs text-[#666666] mt-0.5 block">{unpaidReferrals.length} approved referrals ready for batching</span>
+              <span class="text-xs text-[#666666] mt-0.5 block">
+                {unpaidReferrals.length} approved referrals ready for batching {dateFrom || dateTo ? `(filtered ${dateFrom || 'start'} to ${dateTo || 'now'})` : ''}
+              </span>
             </div>
 
             {unpaidReferrals.length > 0 && (
-              <form action="/admin/payouts/generate" method="post">
+              <form
+                action="/admin/payouts/generate"
+                method="post"
+                data-confirm={`CONFIRM BATCH GENERATION:\n\nAre you sure you want to generate a payout batch for these ${unpaidReferrals.length} approved leads (${totalUnpaidAmount.toLocaleString()} ETB)?\n\nThey will transition to PROCESSING status.`}
+                data-confirm-title="Confirm Batch Generation"
+                data-confirm-subtitle="Move leads to processing state for banking transfer"
+              >
+                <input type="hidden" name="date_from" value={dateFrom} />
+                <input type="hidden" name="date_to" value={dateTo} />
                 {unpaidReferrals.map((r) => (
                   <input key={r.id} type="hidden" name="referral_ids" value={r.id} />
                 ))}
                 <button
                   type="submit"
-                  class="px-5 py-3 bg-white text-black font-semibold text-xs uppercase tracking-wider rounded-lg hover:bg-[#EAEAEA] active:scale-95 transition-all shadow-md"
+                  class="px-8 py-3 whitespace-nowrap bg-white text-black font-bold text-xs uppercase tracking-wider rounded-full hover:bg-[#EAEAEA] active:scale-95 transition-all shadow-md"
                 >
                   Generate Payout Batch ({unpaidReferrals.length} Leads)
                 </button>
@@ -509,24 +576,32 @@ export const AdminPayoutsView: FC<AdminPayoutsViewProps> = ({
               <table class="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr class="text-[#888888] text-[10px] uppercase font-semibold border-b border-[#222222]">
-                    <th class="py-2">Partner</th>
-                    <th class="py-2">Lead</th>
-                    <th class="py-2">Role</th>
-                    <th class="py-2 text-right">Commission</th>
+                    <th class="py-2.5">Partner</th>
+                    <th class="py-2.5">Lead</th>
+                    <th class="py-2.5">Role</th>
+                    <th class="py-2.5">Approved Date</th>
+                    <th class="py-2.5 text-right">Commission</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-[#161616]">
                   {unpaidReferrals.slice(0, 5).map((r) => (
                     <tr key={r.id}>
-                      <td class="py-2 text-white">{r.partner_first_name} {r.partner_father_name}</td>
-                      <td class="py-2 text-[#888888]">{r.full_name}</td>
-                      <td class="py-2 text-[#888888]">{r.role_type}</td>
-                      <td class="py-2 text-right font-mono font-bold text-white">{r.commission_earned_etb} ETB</td>
+                      <td class="py-2.5 text-white font-medium">{r.partner_first_name} {r.partner_father_name}</td>
+                      <td class="py-2.5 text-[#888888]">{r.full_name}</td>
+                      <td class="py-2.5">
+                        <span class="inline-block text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full border border-[#333333] text-white">
+                          {r.role_type}
+                        </span>
+                      </td>
+                      <td class="py-2.5 text-[#888888] font-mono text-[11px]">
+                        {r.approved_at ? new Date(r.approved_at).toLocaleDateString() : new Date(r.created_at).toLocaleDateString()}
+                      </td>
+                      <td class="py-2.5 text-right font-mono font-bold text-white">{r.commission_earned_etb} ETB</td>
                     </tr>
                   ))}
                   {unpaidReferrals.length > 5 && (
                     <tr>
-                      <td colspan={4} class="py-2 text-center text-[11px] text-[#666666]">
+                      <td colspan={5} class="py-2.5 text-center text-[11px] text-[#666666]">
                         + {unpaidReferrals.length - 5} additional leads included in pool
                       </td>
                     </tr>
@@ -543,7 +618,7 @@ export const AdminPayoutsView: FC<AdminPayoutsViewProps> = ({
             Disbursement Batches History ({batches.length})
           </h2>
 
-          <div class="bg-[#0A0A0A] border border-[#262626] rounded-lg overflow-hidden shadow-2xl">
+          <div class="bg-[#0A0A0A] border border-[#262626] rounded-2xl overflow-hidden shadow-2xl">
             <table class="w-full text-left text-xs border-collapse">
               <thead>
                 <tr class="border-b border-[#262626] bg-[#121212] text-[#888888] uppercase tracking-wider font-semibold text-[10px]">
@@ -579,9 +654,11 @@ export const AdminPayoutsView: FC<AdminPayoutsViewProps> = ({
                       </td>
                       <td class="py-3.5 px-4">
                         <span
-                          class={`px-2 py-0.5 rounded text-[10px] uppercase tracking-wider font-medium ${
+                          class={`px-2.5 py-0.5 rounded-full text-[10px] uppercase tracking-wider font-medium ${
                             b.status === 'completed'
-                              ? 'bg-white text-black'
+                              ? 'bg-white text-black font-semibold'
+                              : b.status === 'cancelled'
+                              ? 'bg-[#1C1C1C] text-[#666666] border border-[#2E2E2E]'
                               : 'border border-white/60 text-white'
                           }`}
                         >
@@ -591,7 +668,7 @@ export const AdminPayoutsView: FC<AdminPayoutsViewProps> = ({
                       <td class="py-3.5 px-4 text-right">
                         <a
                           href={`/admin/payouts/${b.id}`}
-                          class="px-3 py-1 bg-white text-black font-semibold text-[11px] uppercase tracking-wider rounded hover:bg-[#EAEAEA] active:scale-95 transition-all"
+                          class="px-4 py-1.5 bg-white text-black font-bold text-[11px] uppercase tracking-wider rounded-full hover:bg-[#EAEAEA] active:scale-95 transition-all shadow-sm"
                         >
                           Open Slip
                         </a>
@@ -611,14 +688,14 @@ export const AdminPayoutsView: FC<AdminPayoutsViewProps> = ({
 interface AdminBatchDetailViewProps {
   user: User;
   batch: PayoutBatch;
-  items: PayoutBatchItem[];
+  groupedItems: PayoutBatchGroupedItem[];
   message?: string;
 }
 
 export const AdminBatchDetailView: FC<AdminBatchDetailViewProps> = ({
   user,
   batch,
-  items,
+  groupedItems,
   message
 }) => {
   return (
@@ -641,21 +718,28 @@ export const AdminBatchDetailView: FC<AdminBatchDetailViewProps> = ({
           <div class="flex items-center space-x-2">
             <button
               onclick="window.print()"
-              class="px-4 py-2 border border-[#333333] hover:border-white text-white font-medium text-xs uppercase tracking-wider rounded transition-colors"
+              class="px-5 py-2 border border-[#333333] hover:border-white text-white font-semibold text-xs uppercase tracking-wider rounded-full transition-colors active:scale-95"
             >
               Print Payout Slip
             </button>
             <a
               href={`/admin/payouts/${batch.id}/export.csv`}
-              class="px-4 py-2 border border-[#333333] hover:border-white text-white font-medium text-xs uppercase tracking-wider rounded transition-colors"
+              class="px-5 py-2 border border-[#333333] hover:border-white text-white font-semibold text-xs uppercase tracking-wider rounded-full transition-colors active:scale-95"
             >
               Export CSV
             </a>
             {batch.status === 'processing' && (
-              <form action={`/admin/payouts/${batch.id}/complete`} method="post" class="inline">
+              <form
+                action={`/admin/payouts/${batch.id}/complete`}
+                method="post"
+                class="inline"
+                data-confirm={`CONFIRM BATCH DISBURSEMENT:\n\nAre you sure you want to mark payout batch ${batch.batch_reference} as COMPLETED?\n\nAll ${batch.item_count} associated partner leads (${batch.total_amount_etb.toLocaleString()} ETB) across ${groupedItems.length} partners will be permanently and immutably marked as PAID.`}
+                data-confirm-title="Confirm Batch Disbursement"
+                data-confirm-subtitle="Disburse funds and complete batch"
+              >
                 <button
                   type="submit"
-                  class="px-4 py-2 bg-white text-black font-semibold text-xs uppercase tracking-wider rounded hover:bg-[#EAEAEA] active:scale-95 transition-all shadow-md"
+                  class="px-5 py-2 bg-white text-black font-bold text-xs uppercase tracking-wider rounded-full hover:bg-[#EAEAEA] active:scale-95 transition-all shadow-md"
                 >
                   Complete Batch & Mark Paid
                 </button>
@@ -665,25 +749,25 @@ export const AdminBatchDetailView: FC<AdminBatchDetailViewProps> = ({
         </div>
 
         {message && (
-          <div class="no-print p-3 bg-[#161616] border border-white/20 rounded text-xs text-white">
+          <div class="no-print p-3.5 bg-[#161616] border border-white/20 rounded-xl text-xs text-white">
             {message}
           </div>
         )}
 
         {/* Batch Overview Cards */}
         <div class="no-print grid grid-cols-3 gap-4">
-          <div class="p-4 bg-[#0A0A0A] border border-[#262626] rounded-lg">
+          <div class="p-4 bg-[#0A0A0A] border border-[#262626] rounded-2xl">
             <span class="text-[10px] font-medium uppercase tracking-wider text-[#888888]">Disbursement Total</span>
             <div class="mt-1 flex items-baseline space-x-1.5">
               <span class="text-xl font-bold text-white font-mono">{batch.total_amount_etb.toLocaleString()}</span>
               <span class="text-xs text-[#888888] font-mono">ETB</span>
             </div>
           </div>
-          <div class="p-4 bg-[#0A0A0A] border border-[#262626] rounded-lg">
-            <span class="text-[10px] font-medium uppercase tracking-wider text-[#888888]">Total Line Items</span>
-            <div class="mt-1 text-xl font-bold text-white font-mono">{batch.item_count} items</div>
+          <div class="p-4 bg-[#0A0A0A] border border-[#262626] rounded-2xl">
+            <span class="text-[10px] font-medium uppercase tracking-wider text-[#888888]">Aggregated Partners</span>
+            <div class="mt-1 text-xl font-bold text-white font-mono">{groupedItems.length} partners ({batch.item_count} leads)</div>
           </div>
-          <div class="p-4 bg-[#0A0A0A] border border-[#262626] rounded-lg">
+          <div class="p-4 bg-[#0A0A0A] border border-[#262626] rounded-2xl">
             <span class="text-[10px] font-medium uppercase tracking-wider text-[#888888]">Lifecycle State</span>
             <div class="mt-1 text-sm font-bold text-white uppercase tracking-wider">{batch.status}</div>
           </div>
@@ -698,41 +782,41 @@ export const AdminBatchDetailView: FC<AdminBatchDetailViewProps> = ({
           <div class="grid grid-cols-2 text-sm gap-2 mb-4">
             <div><strong>Batch Reference:</strong> {batch.batch_reference}</div>
             <div><strong>Date Generated:</strong> {new Date(batch.created_at).toLocaleString()}</div>
-            <div><strong>Total Items:</strong> {batch.item_count}</div>
+            <div><strong>Total Partners:</strong> {groupedItems.length}</div>
+            <div><strong>Total Leads:</strong> {batch.item_count}</div>
             <div><strong>Total Amount:</strong> {batch.total_amount_etb.toLocaleString()} ETB</div>
           </div>
         </div>
 
-        {/* Detailed Items Table */}
-        <div class="bg-[#0A0A0A] border border-[#262626] rounded-lg overflow-hidden shadow-2xl">
+        {/* Detailed Aggregated Partner Table */}
+        <div class="bg-[#0A0A0A] border border-[#262626] rounded-2xl overflow-hidden shadow-2xl">
           <table class="w-full text-left text-xs border-collapse print-table">
             <thead>
               <tr class="border-b border-[#262626] bg-[#121212] text-[#888888] uppercase tracking-wider font-semibold text-[10px]">
-                <th class="py-3 px-4">Batch Reference</th>
                 <th class="py-3 px-4">Partner Name</th>
                 <th class="py-3 px-4">Phone</th>
                 <th class="py-3 px-4">Bank Name</th>
-                <th class="py-3 px-4">Account Holder</th>
                 <th class="py-3 px-4">Account Number</th>
-                <th class="py-3 px-4">Amount (ETB)</th>
-                <th class="no-print py-3 px-4 text-right">Single-Item Action</th>
+                <th class="py-3 px-4">Total Leads</th>
+                <th class="py-3 px-4">Aggregated Total ETB</th>
+                <th class="no-print py-3 px-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-[#1A1A1A]">
-              {items.length === 0 ? (
+              {groupedItems.length === 0 ? (
                 <tr>
-                  <td colspan={8} class="py-8 text-center text-[#666666]">
-                    No items found in this payout batch.
+                  <td colspan={7} class="py-8 text-center text-[#666666]">
+                    No partner lines found in this payout batch.
                   </td>
                 </tr>
               ) : (
-                items.map((item) => (
-                  <tr key={item.referral_id} class="hover:bg-[#121212]/50 transition-colors">
-                    <td class="py-3.5 px-4 font-mono text-[#888888] text-[11px]">
-                      {item.batch_reference}
-                    </td>
+                groupedItems.map((item) => (
+                  <tr key={item.partner_id} class="hover:bg-[#121212]/50 transition-colors">
                     <td class="py-3.5 px-4 font-semibold text-white">
                       {item.partner_name}
+                      {item.account_holder && item.account_holder !== 'N/A' && (
+                        <span class="block text-[10px] text-[#888888] font-normal">Holder: {item.account_holder}</span>
+                      )}
                     </td>
                     <td class="py-3.5 px-4 font-mono text-[#A1A1AA]">
                       {formatEthiopianPhoneDisplay(item.partner_phone)}
@@ -740,28 +824,31 @@ export const AdminBatchDetailView: FC<AdminBatchDetailViewProps> = ({
                     <td class="py-3.5 px-4 text-white">
                       {item.bank_name}
                     </td>
-                    <td class="py-3.5 px-4 text-[#A1A1AA]">
-                      {item.account_holder}
-                    </td>
                     <td class="py-3.5 px-4 font-mono font-bold text-white">
                       {item.account_number}
                     </td>
                     <td class="py-3.5 px-4 font-mono font-bold text-white">
-                      {item.amount_etb} ETB
+                      {item.lead_count} {item.lead_count === 1 ? 'lead' : 'leads'}
+                    </td>
+                    <td class="py-3.5 px-4 font-mono font-bold text-white">
+                      {item.total_amount_etb.toLocaleString()} ETB
                     </td>
                     <td class="no-print py-3.5 px-4 text-right">
                       {batch.status === 'processing' ? (
                         <form
-                          action={`/admin/payouts/${batch.id}/reject-item/${item.referral_id}`}
+                          action={`/admin/payouts/${batch.id}/reject-partner/${item.partner_id}`}
                           method="post"
                           class="inline"
+                          data-confirm={`REJECT PARTNER GROUP:\n\nAre you sure you want to reject all ${item.lead_count} leads for "${item.partner_name}" (${item.total_amount_etb.toLocaleString()} ETB) from this batch?\n\nAll ${item.lead_count} leads will revert to UNPAID status, and the batch totals will be decremented.`}
+                          data-confirm-title="Reject Partner Leads"
+                          data-confirm-subtitle="Revert all partner leads back to unpaid pool"
                         >
                           <button
                             type="submit"
-                            title="Reject bad bank account line back to unpaid"
-                            class="px-2.5 py-1 border border-[#333333] text-[#888888] hover:text-white hover:border-[#666666] text-[10px] uppercase tracking-wider rounded active:scale-95 transition-all"
+                            title="Reject all partner leads back to unpaid"
+                            class="px-4 py-1.5 border border-[#333333] text-[#888888] hover:text-white hover:border-[#666666] text-[10px] font-semibold uppercase tracking-wider rounded-full active:scale-95 transition-all"
                           >
-                            Reject Line
+                            Reject Group
                           </button>
                         </form>
                       ) : (
@@ -788,3 +875,309 @@ export const AdminBatchDetailView: FC<AdminBatchDetailViewProps> = ({
     </BaseLayout>
   );
 };
+
+interface AdminBanksViewProps {
+  user: User;
+  banks: Bank[];
+  message?: string;
+  error?: string;
+}
+
+export const AdminBanksView: FC<AdminBanksViewProps> = ({ user, banks, message, error }) => {
+  return (
+    <BaseLayout title="Admin — Bank Catalog" activeNav="admin-banks" isAdmin userFirstName={user.first_name}>
+      <div class="space-y-8">
+        <div>
+          <h1 class="text-xl font-bold tracking-tight text-white uppercase">Bank Catalog Management</h1>
+          <p class="text-xs text-[#888888] mt-1">
+            Manage supported commercial banks and digital payment providers for partner disbursements.
+          </p>
+        </div>
+
+        {message && (
+          <div class="p-3.5 bg-[#161616] border border-white/20 rounded-xl text-xs text-white">
+            {message}
+          </div>
+        )}
+
+        {error && (
+          <div class="p-3.5 bg-[#161616] border border-red-500/40 rounded-xl text-xs text-white">
+            {error}
+          </div>
+        )}
+
+        {/* Add Bank Card */}
+        <div class="p-6 bg-[#0A0A0A] border border-[#262626] rounded-2xl shadow-xl">
+          <h2 class="text-xs font-bold uppercase tracking-wider text-white mb-3">Add Supported Bank / Payment Method</h2>
+          <form action="/admin/banks" method="post" class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <input
+              type="text"
+              name="name"
+              required
+              placeholder="e.g. Oromia International Bank"
+              class="w-full sm:max-w-md px-3.5 py-2.5 bg-[#121212] border border-[#262626] rounded-xl text-sm text-white placeholder-[#555555] focus:outline-none focus:border-white transition-colors"
+            />
+            <button
+              type="submit"
+              class="w-full sm:w-auto px-8 py-3 whitespace-nowrap bg-white text-black font-bold text-xs uppercase tracking-wider rounded-full hover:bg-[#EAEAEA] active:scale-95 transition-all shrink-0 shadow-sm"
+            >
+              Add Bank
+            </button>
+          </form>
+        </div>
+
+        {/* Banks Catalog Table */}
+        <div class="bg-[#0A0A0A] border border-[#262626] rounded-2xl overflow-hidden shadow-2xl">
+          <table class="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr class="border-b border-[#262626] bg-[#121212] text-[#888888] uppercase tracking-wider font-semibold text-[10px]">
+                <th class="py-3 px-4 w-16">ID</th>
+                <th class="py-3 px-4">Bank / Provider Name</th>
+                <th class="py-3 px-4 w-32">Status</th>
+                <th class="py-3 px-4 text-right w-64">Catalog Actions</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-[#1A1A1A]">
+              {banks.length === 0 ? (
+                <tr>
+                  <td colspan={4} class="py-8 text-center text-[#666666]">
+                    No banks configured in the catalog.
+                  </td>
+                </tr>
+              ) : (
+                banks.map((b) => (
+                  <tr key={b.id} class="hover:bg-[#121212]/50 transition-colors">
+                    <td class="py-3.5 px-4 font-mono text-[#888888]">
+                      #{b.id}
+                    </td>
+                    <td class="py-3.5 px-4">
+                      {/* Inline Edit Form */}
+                      <form action={`/admin/banks/${b.id}/edit`} method="post" class="flex items-center space-x-2">
+                        <input
+                          type="text"
+                          name="name"
+                          value={b.name}
+                          required
+                          class="px-3 py-1.5 bg-[#121212] border border-[#262626] focus:border-white rounded-xl text-xs text-white font-medium max-w-xs transition-colors"
+                        />
+                        <button
+                          type="submit"
+                          class="px-3.5 py-1.5 border border-[#333333] hover:border-white text-[10px] font-semibold uppercase tracking-wider rounded-full text-[#888888] hover:text-white transition-colors"
+                        >
+                          Save
+                        </button>
+                      </form>
+                    </td>
+                    <td class="py-3.5 px-4">
+                      <span
+                        class={`inline-block px-2.5 py-0.5 rounded-full text-[10px] uppercase tracking-wider font-semibold ${
+                          b.is_active === 1
+                            ? 'bg-white text-black'
+                            : 'border border-[#333333] text-[#666666]'
+                        }`}
+                      >
+                        {b.is_active === 1 ? 'Active' : 'Disabled'}
+                      </span>
+                    </td>
+                    <td class="py-3.5 px-4 text-right">
+                      <form
+                        action={`/admin/banks/${b.id}/toggle`}
+                        method="post"
+                        class="inline"
+                        data-confirm={`CONFIRM BANK STATUS TOGGLE:\n\nAre you sure you want to ${b.is_active === 1 ? 'DISABLE' : 'ENABLE'} ${b.name}?\n\n${b.is_active === 1 ? 'Partners will no longer be able to select this bank.' : 'Partners will be able to select this bank.'}`}
+                        data-confirm-title="Toggle Bank Status"
+                        data-confirm-subtitle="Modify bank catalog availability"
+                      >
+                        <button
+                          type="submit"
+                          class={`px-4 py-1.5 text-[10px] uppercase tracking-wider rounded-full font-bold transition-all active:scale-95 ${
+                            b.is_active === 1
+                              ? 'border border-[#333333] text-[#888888] hover:text-white hover:border-[#666666]'
+                              : 'bg-white text-black hover:bg-[#EAEAEA]'
+                          }`}
+                        >
+                          {b.is_active === 1 ? 'Disable' : 'Enable'}
+                        </button>
+                      </form>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </BaseLayout>
+  );
+};
+
+// ============================================================
+// Password Resets Dashboard View
+// ============================================================
+
+interface AdminPasswordResetsViewProps {
+  user: User;
+  pendingResets: PasswordReset[];
+  recentResets: PasswordReset[];
+  message?: string;
+  error?: string;
+}
+
+export const AdminPasswordResetsView: FC<AdminPasswordResetsViewProps> = ({
+  user,
+  pendingResets,
+  recentResets,
+  message,
+  error
+}) => {
+  return (
+    <BaseLayout title="Admin — Password Resets" activeNav="admin-resets" isAdmin userFirstName={user.first_name}>
+      <div class="space-y-6">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-[#262626] pb-4">
+          <div>
+            <h1 class="text-xl font-bold tracking-tight text-white uppercase">Password Reset Requests</h1>
+            <p class="text-xs text-[#888888] mt-1">
+              Review and authorize partner password resets. Approving generates a cryptographically secure 1-hour token and dispatches an SMS.
+            </p>
+          </div>
+          <div class="flex items-center space-x-2">
+            <span class="px-3.5 py-1.5 rounded-full border border-[#262626] bg-[#0A0A0A] text-xs font-mono text-[#888888]">
+              {pendingResets.length} Pending
+            </span>
+          </div>
+        </div>
+
+        {message && (
+          <div class="p-3.5 bg-[#161616] border border-white/20 rounded-xl text-xs text-white">
+            {message}
+          </div>
+        )}
+
+        {error && (
+          <div class="p-3.5 bg-[#161616] border border-red-500/40 rounded-xl text-xs text-white">
+            {error}
+          </div>
+        )}
+
+        {/* Pending Requests Table */}
+        <div class="bg-[#0A0A0A] border border-[#262626] rounded-2xl overflow-hidden shadow-2xl">
+          <div class="px-5 py-3.5 border-b border-[#262626] bg-[#121212]/50 flex items-center justify-between">
+            <h2 class="text-xs font-bold uppercase tracking-wider text-white">
+              Pending Authorization Queue
+            </h2>
+          </div>
+          <table class="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr class="border-b border-[#262626] bg-[#121212] text-[#888888] uppercase tracking-wider font-semibold text-[10px]">
+                <th class="py-3 px-4">Partner Name</th>
+                <th class="py-3 px-4">Phone Number</th>
+                <th class="py-3 px-4">Requested At</th>
+                <th class="py-3 px-4">Status</th>
+                <th class="py-3 px-4 text-right">Authorization</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-[#1A1A1A]">
+              {pendingResets.length === 0 ? (
+                <tr>
+                  <td colspan={5} class="py-8 text-center text-[#666666]">
+                    No pending password reset requests. All partner accounts are in good standing.
+                  </td>
+                </tr>
+              ) : (
+                pendingResets.map((r) => (
+                  <tr key={r.id} class="hover:bg-[#121212]/50 transition-colors">
+                    <td class="py-3.5 px-4 font-semibold text-white">
+                      {r.user_first_name} {r.user_father_name}
+                    </td>
+                    <td class="py-3.5 px-4 font-mono text-[#A1A1AA]">
+                      {r.user_phone ? formatEthiopianPhoneDisplay(r.user_phone) : '—'}
+                    </td>
+                    <td class="py-3.5 px-4 font-mono text-[11px] text-[#888888]">
+                      {new Date(r.created_at).toLocaleString()}
+                    </td>
+                    <td class="py-3.5 px-4">
+                      <span class="px-2.5 py-0.5 rounded-full text-[10px] uppercase tracking-wider font-bold bg-[#1A1A1A] text-white border border-[#333333]">
+                        Pending
+                      </span>
+                    </td>
+                    <td class="py-3.5 px-4 text-right">
+                      <form
+                        action={`/admin/resets/${r.id}/approve`}
+                        method="post"
+                        class="inline"
+                        data-confirm={`CONFIRM PASSWORD RESET APPROVAL:\n\nAre you sure you want to approve the password reset for ${r.user_first_name} ${r.user_father_name} (${r.user_phone ? formatEthiopianPhoneDisplay(r.user_phone) : ''})?\n\nA secure one-time reset link valid for 1 hour will be generated and dispatched via SMS.`}
+                        data-confirm-title="Approve Password Reset"
+                        data-confirm-subtitle="Generate secure reset link and dispatch SMS"
+                      >
+                        <button
+                          type="submit"
+                          class="px-5 py-2 text-xs uppercase tracking-wider rounded-full font-bold whitespace-nowrap bg-white text-black hover:bg-[#EAEAEA] active:scale-95 transition-all shadow-sm"
+                        >
+                          Approve Reset
+                        </button>
+                      </form>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Audit Trail: Recent Password Resets */}
+        {recentResets.length > 0 && (
+          <div class="bg-[#0A0A0A] border border-[#262626] rounded-2xl overflow-hidden shadow-2xl">
+            <div class="px-5 py-3.5 border-b border-[#262626] bg-[#121212]/50 flex items-center justify-between">
+              <h2 class="text-xs font-bold uppercase tracking-wider text-[#888888]">
+                Recent Resets History (Audit Trail)
+              </h2>
+            </div>
+            <table class="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr class="border-b border-[#262626] bg-[#121212] text-[#888888] uppercase tracking-wider font-semibold text-[10px]">
+                  <th class="py-3 px-4">Partner Name</th>
+                  <th class="py-3 px-4">Phone Number</th>
+                  <th class="py-3 px-4">Requested At</th>
+                  <th class="py-3 px-4">Expires At</th>
+                  <th class="py-3 px-4 text-right">Status</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-[#1A1A1A]">
+                {recentResets.map((r) => (
+                  <tr key={r.id} class="hover:bg-[#121212]/50 transition-colors">
+                    <td class="py-3 px-4 font-medium text-[#CCCCCC]">
+                      {r.user_first_name} {r.user_father_name}
+                    </td>
+                    <td class="py-3 px-4 font-mono text-[#888888]">
+                      {r.user_phone ? formatEthiopianPhoneDisplay(r.user_phone) : '—'}
+                    </td>
+                    <td class="py-3 px-4 font-mono text-[11px] text-[#666666]">
+                      {new Date(r.created_at).toLocaleString()}
+                    </td>
+                    <td class="py-3 px-4 font-mono text-[11px] text-[#666666]">
+                      {r.expires_at ? new Date(r.expires_at).toLocaleString() : '—'}
+                    </td>
+                    <td class="py-3 px-4 text-right">
+                      <span
+                        class={`px-2.5 py-0.5 rounded-full text-[10px] uppercase tracking-wider font-bold ${
+                          r.status === 'used'
+                            ? 'bg-[#161616] text-[#888888] border border-[#262626]'
+                            : r.status === 'approved'
+                            ? 'bg-white text-black font-semibold'
+                            : 'bg-[#1A1A1A] text-white border border-[#333333]'
+                        }`}
+                      >
+                        {r.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </BaseLayout>
+  );
+};
+

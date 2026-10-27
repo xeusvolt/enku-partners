@@ -7,8 +7,11 @@ import type {
   Referral,
   PayoutBatch,
   PayoutBatchItem,
+  PayoutBatchGroupedItem,
+  PartnerPaymentHistoryItem,
   ReferralRoleType,
-  UserStatus
+  UserStatus,
+  PasswordReset
 } from '../types';
 
 export class DbClient {
@@ -65,6 +68,22 @@ export class DbClient {
     return (res.meta.changes ?? 0) > 0;
   }
 
+  async updateUserPassword(id: string, passwordHash: string): Promise<boolean> {
+    const res = await this.db
+      .prepare('UPDATE users SET password_hash = ? WHERE id = ?')
+      .bind(passwordHash, id)
+      .run();
+    return (res.meta.changes ?? 0) > 0;
+  }
+
+  async promoteUserToAdmin(id: string): Promise<boolean> {
+    const res = await this.db
+      .prepare("UPDATE users SET role = 'admin', status = 'active' WHERE id = ?")
+      .bind(id)
+      .run();
+    return (res.meta.changes ?? 0) > 0;
+  }
+
   async getAllPartners(status?: UserStatus): Promise<User[]> {
     let query = "SELECT * FROM users WHERE role = 'partner'";
     const params: any[] = [];
@@ -82,11 +101,52 @@ export class DbClient {
   // Banks & Banking Details
   // ============================================================
 
+  /**
+   * Strictly filters active banks (is_active == 1) for Partner Bank Setup.
+   */
   async getBanks(): Promise<Bank[]> {
     const res = await this.db
       .prepare('SELECT * FROM banks WHERE is_active = 1 ORDER BY name ASC')
       .all<Bank>();
     return res.results || [];
+  }
+
+  /**
+   * Returns all banks (active & inactive) for Admin Bank Catalog management.
+   */
+  async getAllBanksAdmin(): Promise<Bank[]> {
+    const res = await this.db
+      .prepare('SELECT * FROM banks ORDER BY id ASC')
+      .all<Bank>();
+    return res.results || [];
+  }
+
+  async createBank(name: string): Promise<boolean> {
+    const trimmed = name.trim();
+    if (!trimmed) return false;
+    const res = await this.db
+      .prepare('INSERT INTO banks (name, is_active) VALUES (?, 1)')
+      .bind(trimmed)
+      .run();
+    return (res.meta.changes ?? 0) > 0;
+  }
+
+  async updateBankName(id: number, name: string): Promise<boolean> {
+    const trimmed = name.trim();
+    if (!trimmed) return false;
+    const res = await this.db
+      .prepare('UPDATE banks SET name = ? WHERE id = ?')
+      .bind(trimmed, id)
+      .run();
+    return (res.meta.changes ?? 0) > 0;
+  }
+
+  async toggleBankStatus(id: number): Promise<boolean> {
+    const res = await this.db
+      .prepare('UPDATE banks SET is_active = CASE WHEN is_active = 1 THEN 0 ELSE 1 END WHERE id = ?')
+      .bind(id)
+      .run();
+    return (res.meta.changes ?? 0) > 0;
   }
 
   async getPartnerBankDetails(partnerId: string): Promise<PartnerBankDetails | null> {
@@ -229,6 +289,43 @@ export class DbClient {
     return res.results || [];
   }
 
+  /**
+   * Active Referrals Only:
+   * Returns active leads (pending, or approved unpaid/processing).
+   * Completed (paid) referrals are excluded from the main partner dashboard view.
+   */
+  async getPartnerActiveReferrals(partnerId: string): Promise<Referral[]> {
+    const res = await this.db
+      .prepare("SELECT * FROM referrals WHERE partner_id = ? AND payout_status != 'paid' ORDER BY created_at DESC")
+      .bind(partnerId)
+      .all<Referral>();
+    return res.results || [];
+  }
+
+  /**
+   * Payment History Ledger for Partner:
+   * Lists completed payout batch disbursements with Date Paid, Number of Leads, and Total ETB Deposited.
+   */
+  async getPartnerPaymentHistory(partnerId: string): Promise<PartnerPaymentHistoryItem[]> {
+    const res = await this.db
+      .prepare(
+        `SELECT 
+          pb.id as batch_id,
+          pb.batch_reference,
+          COALESCE(pb.completed_at, pb.created_at) as date_paid,
+          COUNT(r.id) as lead_count,
+          ROUND(SUM(r.commission_earned_etb), 2) as total_etb_deposited
+        FROM referrals r
+        JOIN payout_batches pb ON r.payout_batch_id = pb.id
+        WHERE r.partner_id = ? AND r.payout_status = 'paid' AND pb.status = 'completed'
+        GROUP BY pb.id, pb.batch_reference, pb.completed_at, pb.created_at
+        ORDER BY date_paid DESC`
+      )
+      .bind(partnerId)
+      .all<PartnerPaymentHistoryItem>();
+    return res.results || [];
+  }
+
   async getPartnerStats(partnerId: string): Promise<{
     pendingApprovalsCount: number;
     approvedUnpaidCount: number;
@@ -324,18 +421,21 @@ export class DbClient {
       SELECT r.*, u.first_name as partner_first_name, u.father_name as partner_father_name, u.phone_number as partner_phone
       FROM referrals r
       JOIN users u ON r.partner_id = u.id
+      JOIN partner_bank_details pbd ON u.id = pbd.partner_id
+      JOIN banks b ON pbd.bank_id = b.id AND b.is_active = 1
       WHERE r.status = 'approved' AND r.payout_status = 'unpaid'
+        AND pbd.account_number IS NOT NULL AND TRIM(pbd.account_number) != ''
     `;
     const params: any[] = [];
     if (dateFrom) {
-      query += ' AND r.created_at >= ?';
+      query += ' AND date(COALESCE(r.approved_at, r.created_at)) >= date(?)';
       params.push(dateFrom);
     }
     if (dateTo) {
-      query += ' AND r.created_at <= ?';
+      query += ' AND date(COALESCE(r.approved_at, r.created_at)) <= date(?)';
       params.push(dateTo);
     }
-    query += ' ORDER BY r.created_at ASC';
+    query += ' ORDER BY r.approved_at ASC, r.created_at ASC';
 
     const res = await this.db.prepare(query).bind(...params).all<Referral>();
     return res.results || [];
@@ -344,10 +444,20 @@ export class DbClient {
   async createPayoutBatch(adminId: string, referralIds: string[]): Promise<PayoutBatch | null> {
     if (referralIds.length === 0) return null;
 
-    // Fetch matching referrals to calculate exact count & total
+    // Fetch matching referrals requiring active bank configuration
     const placeholders = referralIds.map(() => '?').join(',');
     const referrals = await this.db
-      .prepare(`SELECT * FROM referrals WHERE id IN (${placeholders}) AND status = 'approved' AND payout_status = 'unpaid'`)
+      .prepare(
+        `SELECT r.* 
+         FROM referrals r
+         JOIN users u ON r.partner_id = u.id
+         JOIN partner_bank_details pbd ON u.id = pbd.partner_id
+         JOIN banks b ON pbd.bank_id = b.id AND b.is_active = 1
+         WHERE r.id IN (${placeholders}) 
+           AND r.status = 'approved' 
+           AND r.payout_status = 'unpaid'
+           AND pbd.account_number IS NOT NULL AND TRIM(pbd.account_number) != ''`
+      )
       .bind(...referralIds)
       .all<Referral>();
 
@@ -444,9 +554,115 @@ export class DbClient {
   }
 
   /**
+   * Aggregated Partner Groupings for Payout Batch:
+   * Groups items in a batch by Partner so each partner appears as ONE row on the slip
+   * with Partner Name, Phone, Bank Name, Account Number, Total Leads count, and Aggregated Total ETB.
+   */
+  async getPayoutBatchGroupedItems(batchId: string): Promise<PayoutBatchGroupedItem[]> {
+    const res = await this.db
+      .prepare(
+        `SELECT 
+          u.id as partner_id,
+          (u.first_name || ' ' || u.father_name) as partner_name,
+          u.phone_number as partner_phone,
+          COALESCE(b.name, 'No Bank Configured') as bank_name,
+          COALESCE(pbd.account_holder_name, 'N/A') as account_holder,
+          COALESCE(pbd.account_number, 'N/A') as account_number,
+          COUNT(r.id) as lead_count,
+          ROUND(SUM(r.commission_earned_etb), 2) as total_amount_etb,
+          GROUP_CONCAT(r.id) as referral_ids_str
+        FROM referrals r
+        JOIN users u ON r.partner_id = u.id
+        LEFT JOIN partner_bank_details pbd ON u.id = pbd.partner_id
+        LEFT JOIN banks b ON pbd.bank_id = b.id
+        WHERE r.payout_batch_id = ?
+        GROUP BY u.id, u.first_name, u.father_name, u.phone_number, b.name, pbd.account_holder_name, pbd.account_number
+        ORDER BY partner_name ASC`
+      )
+      .bind(batchId)
+      .all<{
+        partner_id: string;
+        partner_name: string;
+        partner_phone: string;
+        bank_name: string;
+        account_holder: string;
+        account_number: string;
+        lead_count: number;
+        total_amount_etb: number;
+        referral_ids_str: string;
+      }>();
+
+    const rows = res.results || [];
+    return rows.map((row) => ({
+      partner_id: row.partner_id,
+      partner_name: row.partner_name,
+      partner_phone: row.partner_phone,
+      bank_name: row.bank_name,
+      account_holder: row.account_holder,
+      account_number: row.account_number,
+      lead_count: row.lead_count,
+      total_amount_etb: row.total_amount_etb,
+      referral_ids: row.referral_ids_str ? row.referral_ids_str.split(',') : []
+    }));
+  }
+
+  /**
+   * Reject Partner Group:
+   * Reject all leads belonging to a specific partner in an active batch back to 'unpaid'.
+   * Decrements item_count by the partner's lead_count, subtracts the group total from
+   * total_amount_etb, and auto-cancels the batch if item_count drops to 0.
+   */
+  async rejectPayoutBatchPartnerGroup(partnerId: string, batchId: string): Promise<boolean> {
+    const batch = await this.getPayoutBatchById(batchId);
+    if (!batch || batch.status !== 'processing') {
+      return false;
+    }
+
+    const leadsRes = await this.db
+      .prepare(
+        `SELECT id, commission_earned_etb 
+         FROM referrals 
+         WHERE partner_id = ? AND payout_batch_id = ? AND payout_status = 'processing'`
+      )
+      .bind(partnerId, batchId)
+      .all<{ id: string; commission_earned_etb: number }>();
+
+    const leads = leadsRes.results || [];
+    if (leads.length === 0) return false;
+
+    const leadCount = leads.length;
+    const groupTotalEtb = leads.reduce((sum, l) => sum + (l.commission_earned_etb || 0), 0);
+
+    // 1. Unlink all partner leads and revert to unpaid
+    const unlinkStmt = this.db
+      .prepare(
+        `UPDATE referrals 
+         SET payout_status = 'unpaid', payout_batch_id = NULL 
+         WHERE partner_id = ? AND payout_batch_id = ? AND payout_status = 'processing'`
+      )
+      .bind(partnerId, batchId);
+
+    // 2. Perform atomic arithmetic & state transition directly inside SQL
+    const updateBatchStmt = this.db
+      .prepare(
+        `UPDATE payout_batches 
+         SET item_count = MAX(0, item_count - ?),
+             total_amount_etb = MAX(0, ROUND(total_amount_etb - ?, 2)),
+             status = CASE WHEN item_count - ? <= 0 THEN 'cancelled' ELSE status END
+         WHERE id = ? AND status = 'processing'`
+      )
+      .bind(leadCount, groupTotalEtb, leadCount, batchId);
+
+    // Execute atomically via Cloudflare D1 batch
+    const results = await this.db.batch([unlinkStmt, updateBatchStmt]);
+    return (results[0]?.meta?.changes ?? 0) > 0;
+  }
+
+  /**
    * Single-Item Override:
    * Reject a single bad bank line back to 'unpaid' without voiding the entire batch.
-   * Recalculates the batch item_count and total_amount_etb dynamically.
+   * Decrements item_count, subtracts line amount from total_amount_etb, and if
+   * the batch becomes empty (item_count reaches 0), automatically cancels the batch.
    */
   async rejectPayoutBatchItem(referralId: string, batchId: string): Promise<boolean> {
     const batch = await this.getPayoutBatchById(batchId);
@@ -455,32 +671,35 @@ export class DbClient {
     }
 
     const lead = await this.db
-      .prepare('SELECT * FROM referrals WHERE id = ? AND payout_batch_id = ?')
+      .prepare('SELECT * FROM referrals WHERE id = ? AND payout_batch_id = ? AND payout_status = "processing"')
       .bind(referralId, batchId)
       .first<Referral>();
 
     if (!lead) return false;
 
-    // Reset referral to unpaid and unlink from batch
-    await this.db
-      .prepare("UPDATE referrals SET payout_status = 'unpaid', payout_batch_id = NULL WHERE id = ?")
-      .bind(referralId)
-      .run();
+    const leadAmount = lead.commission_earned_etb || 0;
 
-    // Recalculate batch totals
-    const remaining = await this.db
+    // 1. Unlink referral and revert to unpaid only if currently attached to this batch
+    const unlinkStmt = this.db
       .prepare(
-        'SELECT COUNT(*) as count, COALESCE(SUM(commission_earned_etb), 0) as total FROM referrals WHERE payout_batch_id = ?'
+        "UPDATE referrals SET payout_status = 'unpaid', payout_batch_id = NULL WHERE id = ? AND payout_batch_id = ? AND payout_status = 'processing'"
       )
-      .bind(batchId)
-      .first<{ count: number; total: number }>();
+      .bind(referralId, batchId);
 
-    await this.db
-      .prepare('UPDATE payout_batches SET item_count = ?, total_amount_etb = ? WHERE id = ?')
-      .bind(remaining?.count || 0, remaining?.total || 0, batchId)
-      .run();
+    // 2. Perform atomic arithmetic & state transition directly inside SQL to prevent lost updates
+    const updateBatchStmt = this.db
+      .prepare(
+        `UPDATE payout_batches 
+         SET item_count = MAX(0, item_count - 1),
+             total_amount_etb = MAX(0, ROUND(total_amount_etb - ?, 2)),
+             status = CASE WHEN item_count - 1 <= 0 THEN 'cancelled' ELSE status END
+         WHERE id = ? AND status = 'processing'`
+      )
+      .bind(leadAmount, batchId);
 
-    return true;
+    // Execute atomically via Cloudflare D1 batch
+    const results = await this.db.batch([unlinkStmt, updateBatchStmt]);
+    return (results[0]?.meta?.changes ?? 0) > 0;
   }
 
   /**
@@ -496,16 +715,120 @@ export class DbClient {
     const now = new Date().toISOString();
 
     const leadsPaidStmt = this.db
-      .prepare("UPDATE referrals SET payout_status = 'paid' WHERE payout_batch_id = ?")
+      .prepare("UPDATE referrals SET payout_status = 'paid' WHERE payout_batch_id = ? AND payout_status = 'processing'")
       .bind(batchId);
 
     const batchCompleteStmt = this.db
-      .prepare("UPDATE payout_batches SET status = 'completed', completed_at = ? WHERE id = ?")
+      .prepare("UPDATE payout_batches SET status = 'completed', completed_at = ? WHERE id = ? AND status = 'processing' AND item_count > 0")
       .bind(now, batchId);
 
     // Execute atomic completion
     await this.db.batch([leadsPaidStmt, batchCompleteStmt]);
 
     return true;
+  }
+
+  // ============================================================
+  // Password Resets Lifecycle
+  // ============================================================
+
+  async createPasswordResetRequest(userId: string): Promise<PasswordReset> {
+    const id = crypto.randomUUID();
+    const now = new Date().toISOString();
+    await this.db
+      .prepare(
+        "INSERT INTO password_resets (id, user_id, reset_token, status, expires_at, created_at) VALUES (?, ?, NULL, 'pending', NULL, ?)"
+      )
+      .bind(id, userId, now)
+      .run();
+
+    return {
+      id,
+      user_id: userId,
+      reset_token: null,
+      status: 'pending',
+      expires_at: null,
+      created_at: now
+    };
+  }
+
+  async getPendingPasswordResets(): Promise<PasswordReset[]> {
+    const res = await this.db
+      .prepare(
+        `SELECT pr.*, u.first_name as user_first_name, u.father_name as user_father_name, u.phone_number as user_phone
+         FROM password_resets pr
+         JOIN users u ON pr.user_id = u.id
+         WHERE pr.status = 'pending'
+         ORDER BY pr.created_at DESC`
+      )
+      .all<PasswordReset>();
+
+    return res.results || [];
+  }
+
+  async getAllPasswordResets(): Promise<PasswordReset[]> {
+    const res = await this.db
+      .prepare(
+        `SELECT pr.*, u.first_name as user_first_name, u.father_name as user_father_name, u.phone_number as user_phone
+         FROM password_resets pr
+         JOIN users u ON pr.user_id = u.id
+         ORDER BY pr.created_at DESC
+         LIMIT 50`
+      )
+      .all<PasswordReset>();
+
+    return res.results || [];
+  }
+
+  async getPasswordResetById(id: string): Promise<PasswordReset | null> {
+    const res = await this.db
+      .prepare(
+        `SELECT pr.*, u.first_name as user_first_name, u.father_name as user_father_name, u.phone_number as user_phone
+         FROM password_resets pr
+         JOIN users u ON pr.user_id = u.id
+         WHERE pr.id = ?`
+      )
+      .bind(id)
+      .first<PasswordReset>();
+
+    return res || null;
+  }
+
+  async approvePasswordReset(id: string, token: string, expiresAt: string): Promise<boolean> {
+    const res = await this.db
+      .prepare(
+        "UPDATE password_resets SET reset_token = ?, status = 'approved', expires_at = ? WHERE id = ? AND status = 'pending'"
+      )
+      .bind(token, expiresAt, id)
+      .run();
+
+    return (res.meta.changes ?? 0) > 0;
+  }
+
+  async getPasswordResetByToken(token: string): Promise<PasswordReset | null> {
+    const res = await this.db
+      .prepare(
+        `SELECT pr.*, u.first_name as user_first_name, u.father_name as user_father_name, u.phone_number as user_phone
+         FROM password_resets pr
+         JOIN users u ON pr.user_id = u.id
+         WHERE pr.reset_token = ?`
+      )
+      .bind(token)
+      .first<PasswordReset>();
+
+    return res || null;
+  }
+
+  async completePasswordReset(resetId: string, userId: string, newPasswordHash: string): Promise<boolean> {
+    const updateResetStmt = this.db
+      .prepare("UPDATE password_resets SET status = 'used' WHERE id = ? AND status = 'approved'")
+      .bind(resetId);
+
+    const updateUserStmt = this.db
+      .prepare('UPDATE users SET password_hash = ? WHERE id = ?')
+      .bind(newPasswordHash, userId);
+
+    const results = await this.db.batch([updateResetStmt, updateUserStmt]);
+    return results.every((r) => r.success);
   }
 }

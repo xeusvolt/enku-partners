@@ -6,6 +6,7 @@ export type ReferralRoleType = 'Customer' | 'Helper' | 'Broker';
 export type ReferralStatus = 'pending' | 'approved' | 'rejected';
 export type PayoutStatus = 'unpaid' | 'processing' | 'paid';
 export type BatchStatus = 'processing' | 'completed' | 'cancelled';
+export type PasswordResetStatus = 'pending' | 'approved' | 'used';
 
 export interface User {
   id: string;
@@ -88,12 +89,34 @@ export interface PayoutBatchItem {
   lead_phone: string;
 }
 
+export interface PayoutBatchGroupedItem {
+  partner_id: string;
+  partner_name: string;
+  partner_phone: string;
+  bank_name: string;
+  account_holder: string;
+  account_number: string;
+  lead_count: number;
+  total_amount_etb: number;
+  referral_ids: string[];
+}
+
+export interface PartnerPaymentHistoryItem {
+  batch_id: string;
+  batch_reference: string;
+  date_paid: string;
+  lead_count: number;
+  total_etb_deposited: number;
+}
+
 export interface Env {
   DB: D1Database;
   SESSION_SECRET?: string;
   SMS_ETHIOPIA_API_KEY?: string;
   ENVIRONMENT?: string;
   BASE_URL?: string;
+  ADMIN_PHONE?: string;
+  ADMIN_PASSWORD?: string;
 }
 
 export interface SessionData {
@@ -103,4 +126,16 @@ export interface SessionData {
   firstName: string;
   status: UserStatus;
   exp: number;
+}
+
+export interface PasswordReset {
+  id: string;
+  user_id: string;
+  reset_token: string | null;
+  status: PasswordResetStatus;
+  expires_at: string | null;
+  created_at: string;
+  user_first_name?: string;
+  user_father_name?: string;
+  user_phone?: string;
 }
