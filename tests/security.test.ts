@@ -208,4 +208,19 @@ describe('Automated Security & E2E Testing Suite', () => {
     const bodyText = await selfReferralRes.text();
     expect(bodyText).toContain('Self-referral violation');
   });
+
+  // Test 5: HTTPS Transport Security & Security Headers
+  it('5. Transport Security: Injects HSTS, MIME sniffing protection, and frame protection on all routes', async () => {
+    // Check unauthenticated redirect response
+    const profileRes = await app.request('/partner/profile', { method: 'GET' }, mockEnv);
+    expect(profileRes.headers.get('strict-transport-security')).toBe('max-age=31536000; includeSubDomains; preload');
+    expect(profileRes.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(profileRes.headers.get('x-frame-options')).toBe('SAMEORIGIN');
+    expect(profileRes.headers.get('referrer-policy')).toBe('strict-origin-when-cross-origin');
+
+    // Check health endpoint response
+    const healthRes = await app.request('/health', { method: 'GET' }, mockEnv);
+    expect(healthRes.headers.get('strict-transport-security')).toBe('max-age=31536000; includeSubDomains; preload');
+    expect(healthRes.headers.get('x-content-type-options')).toBe('nosniff');
+  });
 });

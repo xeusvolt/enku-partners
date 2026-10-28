@@ -1,5 +1,6 @@
 // Enku Partners — Cloudflare Workers / Pages Main Application Entry
 import { Hono } from 'hono';
+import { secureHeaders } from 'hono/secure-headers';
 import { authRoutes } from './routes/auth';
 import { partnerRoutes } from './routes/partner';
 import { adminRoutes } from './routes/admin';
@@ -7,6 +8,14 @@ import { getCurrentUser } from './middleware/auth';
 import type { Env } from './types';
 
 const app = new Hono<{ Bindings: Env }>();
+
+// Security Headers: Strict Transport Security (HSTS), MIME Protection, Frame Isolation
+app.use('*', secureHeaders({
+  strictTransportSecurity: 'max-age=31536000; includeSubDomains; preload',
+  xContentTypeOptions: 'nosniff',
+  xFrameOptions: 'SAMEORIGIN',
+  referrerPolicy: 'strict-origin-when-cross-origin'
+}));
 
 // Root Route: Redirects based on authentication status & role
 app.get('/', async (c) => {
