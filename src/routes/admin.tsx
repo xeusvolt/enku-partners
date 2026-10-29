@@ -190,31 +190,55 @@ adminRoutes.get('/payouts', async (c) => {
 
 adminRoutes.post('/payouts/generate', async (c) => {
   const admin = c.get('user');
-  const body = await c.req.parseBody();
-  const dateFrom = String(body['date_from'] || '').trim();
-  const dateTo = String(body['date_to'] || '').trim();
-  const db = new DbClient(c.env.DB);
-
-  // Handle both single string and array of referral_ids
   let referralIds: string[] = [];
-  const rawIds = body['referral_ids'];
-  if (Array.isArray(rawIds)) {
-    referralIds = rawIds.map(String);
-  } else if (rawIds) {
-    referralIds = [String(rawIds)];
+
+  const contentType = c.req.header('content-type') || '';
+  if (contentType.includes('application/json')) {
+    try {
+      const json = await c.req.json();
+      const raw = json.referral_ids || json.referralIds;
+      if (Array.isArray(raw)) {
+        referralIds = raw.map(String).map((s) => s.trim()).filter((s) => s.length > 0);
+      } else if (raw) {
+        const s = String(raw).trim();
+        if (s) referralIds = [s];
+      }
+    } catch {
+      // ignore JSON parse error
+    }
   } else {
-    // If none explicitly selected, fetch all approved unpaid matching date range
-    const unpaidMatching = await db.getUnpaidApprovedReferrals(dateFrom || undefined, dateTo || undefined);
-    referralIds = unpaidMatching.map((r) => r.id);
+    try {
+      const formData = await c.req.formData();
+      referralIds = formData
+        .getAll('referral_ids')
+        .map(String)
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
+    } catch {
+      const body = await c.req.parseBody({ all: true });
+      const raw = body['referral_ids'];
+      if (Array.isArray(raw)) {
+        referralIds = raw.map(String).map((s) => s.trim()).filter((s) => s.length > 0);
+      } else if (raw) {
+        const s = String(raw).trim();
+        if (s) referralIds = [s];
+      }
+    }
   }
 
+  referralIds = Array.from(new Set(referralIds));
+
+  // Strict Empty Guard: If the array is empty or contains no IDs, return 400 error: "No leads selected."
   if (referralIds.length === 0) {
-    return c.redirect(`/admin/payouts?date_from=${dateFrom}&date_to=${dateTo}&msg=No+approved+unpaid+referrals+found+in+the+selected+date+range.`);
+    return c.text('No leads selected.', 400);
   }
 
+  const db = new DbClient(c.env.DB);
   const batch = await db.createPayoutBatch(admin.id, referralIds);
   if (!batch) {
-    return c.redirect('/admin/payouts?msg=Failed+to+generate+batch.+Please+try+again.');
+    return c.redirect(
+      '/admin/payouts?msg=Error:+None+of+the+selected+leads+were+eligible+for+batching+(ensure+partners+have+active+bank+details).'
+    );
   }
 
   return c.redirect(`/admin/payouts/${batch.id}?msg=Payout+batch+${batch.batch_reference}+created+successfully.`);

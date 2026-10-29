@@ -536,79 +536,186 @@ export const AdminPayoutsView: FC<AdminPayoutsViewProps> = ({
 
         {/* Section 1: Ready for Disbursement */}
         <div class="p-6 bg-[#0A0A0A] border border-[#262626] rounded-2xl shadow-xl">
-          <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pb-4 border-b border-[#1E1E1E]">
+          {unpaidReferrals.length === 0 ? (
             <div>
-              <span class="text-[11px] font-semibold uppercase tracking-wider text-[#888888]">Pending Disbursement Pool</span>
-              <div class="mt-1 flex items-baseline space-x-2">
-                <span class="text-2xl font-bold text-white tracking-tight font-mono">{totalUnpaidAmount.toLocaleString()}</span>
-                <span class="text-xs font-mono text-[#888888]">ETB</span>
+              <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pb-4 border-b border-[#1E1E1E]">
+                <div>
+                  <span class="text-[11px] font-semibold uppercase tracking-wider text-[#888888]">Pending Disbursement Pool</span>
+                  <div class="mt-1 flex items-baseline space-x-2">
+                    <span class="text-2xl font-bold text-white tracking-tight font-mono">0</span>
+                    <span class="text-xs font-mono text-[#888888]">ETB</span>
+                  </div>
+                  <span class="text-xs text-[#666666] mt-0.5 block">
+                    0 approved referrals ready for batching {dateFrom || dateTo ? `(filtered ${dateFrom || 'start'} to ${dateTo || 'now'})` : ''}
+                  </span>
+                </div>
               </div>
-              <span class="text-xs text-[#666666] mt-0.5 block">
-                {unpaidReferrals.length} approved referrals ready for batching {dateFrom || dateTo ? `(filtered ${dateFrom || 'start'} to ${dateTo || 'now'})` : ''}
-              </span>
+              <div class="py-8 text-center text-xs text-[#666666]">
+                No approved unpaid leads found for disbursement.
+              </div>
             </div>
+          ) : (
+            <form
+              id="batch-generate-form"
+              action="/admin/payouts/generate"
+              method="post"
+              data-confirm={`CONFIRM BATCH GENERATION:\n\nAre you sure you want to generate a payout batch for ${unpaidReferrals.length} selected leads (${totalUnpaidAmount.toLocaleString()} ETB)?\n\nThey will transition to PROCESSING status.`}
+              data-confirm-title="Confirm Batch Generation"
+              data-confirm-subtitle="Move selected leads to processing state for banking transfer"
+            >
+              <input type="hidden" name="date_from" value={dateFrom} />
+              <input type="hidden" name="date_to" value={dateTo} />
+              <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pb-4 border-b border-[#1E1E1E]">
+                <div>
+                  <span class="text-[11px] font-semibold uppercase tracking-wider text-[#888888]">Pending Disbursement Pool</span>
+                  <div class="mt-1 flex items-baseline space-x-2">
+                    <span id="pool-total-display" class="text-2xl font-bold text-white tracking-tight font-mono">{totalUnpaidAmount.toLocaleString()}</span>
+                    <span class="text-xs font-mono text-[#888888]">ETB</span>
+                  </div>
+                  <span class="text-xs text-[#666666] mt-0.5 block">
+                    <span id="selected-leads-count">{unpaidReferrals.length}</span> of {unpaidReferrals.length} leads selected {dateFrom || dateTo ? `(filtered ${dateFrom || 'start'} to ${dateTo || 'now'})` : ''}
+                  </span>
+                </div>
 
-            {unpaidReferrals.length > 0 && (
-              <form
-                action="/admin/payouts/generate"
-                method="post"
-                data-confirm={`CONFIRM BATCH GENERATION:\n\nAre you sure you want to generate a payout batch for these ${unpaidReferrals.length} approved leads (${totalUnpaidAmount.toLocaleString()} ETB)?\n\nThey will transition to PROCESSING status.`}
-                data-confirm-title="Confirm Batch Generation"
-                data-confirm-subtitle="Move leads to processing state for banking transfer"
-              >
-                <input type="hidden" name="date_from" value={dateFrom} />
-                <input type="hidden" name="date_to" value={dateTo} />
-                {unpaidReferrals.map((r) => (
-                  <input key={r.id} type="hidden" name="referral_ids" value={r.id} />
-                ))}
-                <button
-                  type="submit"
-                  class="px-8 py-3 whitespace-nowrap bg-white text-black font-bold text-xs uppercase tracking-wider rounded-full hover:bg-[#EAEAEA] active:scale-95 transition-all shadow-md"
-                >
-                  Generate Payout Batch ({unpaidReferrals.length} Leads)
-                </button>
-              </form>
-            )}
-          </div>
+                <div>
+                  <button
+                    type="submit"
+                    id="master-generate-btn"
+                    class="px-8 py-3 whitespace-nowrap bg-white text-black font-bold text-xs uppercase tracking-wider rounded-full hover:bg-[#EAEAEA] active:scale-95 transition-all shadow-md disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white disabled:active:scale-100"
+                  >
+                    Generate Payout Batch for Selected
+                  </button>
+                </div>
+              </div>
 
-          {unpaidReferrals.length > 0 && (
-            <div class="mt-4 overflow-x-auto">
-              <table class="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr class="text-[#888888] text-[10px] uppercase font-semibold border-b border-[#222222]">
-                    <th class="py-2.5">Partner</th>
-                    <th class="py-2.5">Lead</th>
-                    <th class="py-2.5">Role</th>
-                    <th class="py-2.5">Approved Date</th>
-                    <th class="py-2.5 text-right">Commission</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-[#161616]">
-                  {unpaidReferrals.slice(0, 5).map((r) => (
-                    <tr key={r.id}>
-                      <td class="py-2.5 text-white font-medium">{r.partner_first_name} {r.partner_father_name}</td>
-                      <td class="py-2.5 text-[#888888]">{r.full_name}</td>
-                      <td class="py-2.5">
-                        <span class="inline-block text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full border border-[#333333] text-white">
-                          {r.role_type}
-                        </span>
-                      </td>
-                      <td class="py-2.5 text-[#888888] font-mono text-[11px]">
-                        {r.approved_at ? new Date(r.approved_at).toLocaleDateString() : new Date(r.created_at).toLocaleDateString()}
-                      </td>
-                      <td class="py-2.5 text-right font-mono font-bold text-white">{r.commission_earned_etb} ETB</td>
+              <div class="mt-4 overflow-x-auto">
+                <table class="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr class="text-[#888888] text-[10px] uppercase font-semibold border-b border-[#222222]">
+                      <th class="py-2.5 px-3 w-10 text-center">
+                        <input
+                          type="checkbox"
+                          id="select-all-leads"
+                          checked
+                          class="w-4 h-4 rounded border-[#333333] bg-[#161616] text-white focus:ring-0 focus:ring-offset-0 cursor-pointer accent-white"
+                          title="Select / Deselect All Leads"
+                        />
+                      </th>
+                      <th class="py-2.5">Partner</th>
+                      <th class="py-2.5">Lead</th>
+                      <th class="py-2.5">Role</th>
+                      <th class="py-2.5">Approved Date</th>
+                      <th class="py-2.5 text-right pr-2">Commission</th>
                     </tr>
-                  ))}
-                  {unpaidReferrals.length > 5 && (
-                    <tr>
-                      <td colspan={5} class="py-2.5 text-center text-[11px] text-[#666666]">
-                        + {unpaidReferrals.length - 5} additional leads included in pool
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody class="divide-y divide-[#161616]">
+                    {unpaidReferrals.map((r) => (
+                      <tr key={r.id} class="hover:bg-white/[0.02] transition-colors">
+                        <td class="py-2.5 px-3 w-10 text-center">
+                          <input
+                            type="checkbox"
+                            name="referral_ids"
+                            value={r.id}
+                            data-amount={r.commission_earned_etb}
+                            checked
+                            class="lead-checkbox w-4 h-4 rounded border-[#333333] bg-[#161616] text-white focus:ring-0 focus:ring-offset-0 cursor-pointer accent-white"
+                          />
+                        </td>
+                        <td class="py-2.5 text-white font-medium">{r.partner_first_name} {r.partner_father_name}</td>
+                        <td class="py-2.5 text-[#888888]">{r.full_name}</td>
+                        <td class="py-2.5">
+                          <span class="inline-block text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full border border-[#333333] text-white">
+                            {r.role_type}
+                          </span>
+                        </td>
+                        <td class="py-2.5 text-[#888888] font-mono text-[11px]">
+                          {r.approved_at ? new Date(r.approved_at).toLocaleDateString() : new Date(r.created_at).toLocaleDateString()}
+                        </td>
+                        <td class="py-2.5 text-right font-mono font-bold text-white pr-2">{r.commission_earned_etb} ETB</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <script dangerouslySetInnerHTML={{
+                __html: `
+                  (function() {
+                    var selectAll = document.getElementById('select-all-leads');
+                    var form = document.getElementById('batch-generate-form');
+                    var masterBtn = document.getElementById('master-generate-btn');
+                    var countDisplay = document.getElementById('selected-leads-count');
+                    var poolTotalDisplay = document.getElementById('pool-total-display');
+                    if (!form) return;
+
+                    function getCheckboxes() {
+                      return Array.prototype.slice.call(form.querySelectorAll('.lead-checkbox'));
+                    }
+
+                    function updateState() {
+                      var checkboxes = getCheckboxes();
+                      var selected = checkboxes.filter(function(cb) { return cb.checked; });
+                      var selectedCount = selected.length;
+
+                      if (countDisplay) {
+                        countDisplay.textContent = selectedCount.toString();
+                      }
+
+                      if (selectAll) {
+                        selectAll.checked = checkboxes.length > 0 && selectedCount === checkboxes.length;
+                        selectAll.indeterminate = selectedCount > 0 && selectedCount < checkboxes.length;
+                      }
+
+                      if (masterBtn) {
+                        masterBtn.disabled = selectedCount === 0;
+                        masterBtn.textContent = 'Generate Payout Batch for Selected' + (selectedCount > 0 ? ' (' + selectedCount + ')' : '');
+                      }
+
+                      var totalSelectedAmount = 0;
+                      selected.forEach(function(cb) {
+                        var amt = parseFloat(cb.getAttribute('data-amount') || '0');
+                        if (!isNaN(amt)) totalSelectedAmount += amt;
+                      });
+
+                      if (poolTotalDisplay) {
+                        poolTotalDisplay.textContent = totalSelectedAmount.toLocaleString();
+                      }
+
+                      form.setAttribute('data-confirm', 'CONFIRM BATCH GENERATION:\\n\\nAre you sure you want to generate a payout batch for ' + selectedCount + ' selected leads (' + totalSelectedAmount.toLocaleString() + ' ETB)?\\n\\nThey will transition to PROCESSING status.');
+                    }
+
+                    if (selectAll) {
+                      selectAll.addEventListener('change', function() {
+                        var checkboxes = getCheckboxes();
+                        for (var i = 0; i < checkboxes.length; i++) {
+                          checkboxes[i].checked = selectAll.checked;
+                        }
+                        updateState();
+                      });
+                    }
+
+                    form.addEventListener('change', function(e) {
+                      if (e.target && e.target.classList && e.target.classList.contains('lead-checkbox')) {
+                        updateState();
+                      }
+                    });
+
+                    form.addEventListener('submit', function(e) {
+                      var checkboxes = getCheckboxes();
+                      var selected = checkboxes.filter(function(cb) { return cb.checked; });
+                      if (selected.length === 0) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        alert('No leads selected. Please select at least one referral lead to generate a payout batch.');
+                        return false;
+                      }
+                    });
+
+                    updateState();
+                  })();
+                `
+              }} />
+            </form>
           )}
         </div>
 

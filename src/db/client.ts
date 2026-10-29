@@ -442,31 +442,43 @@ export class DbClient {
   }
 
   async createPayoutBatch(adminId: string, referralIds: string[]): Promise<PayoutBatch | null> {
-    if (referralIds.length === 0) return null;
+    if (!referralIds || referralIds.length === 0) return null;
+
+    // Deduplicate IDs
+    const uniqueIds = Array.from(new Set(referralIds.map((id) => id.trim()).filter((id) => id.length > 0)));
+    if (uniqueIds.length === 0) return null;
 
     // Fetch matching referrals requiring active bank configuration
-    const placeholders = referralIds.map(() => '?').join(',');
-    const referrals = await this.db
-      .prepare(
-        `SELECT r.* 
-         FROM referrals r
-         JOIN users u ON r.partner_id = u.id
-         JOIN partner_bank_details pbd ON u.id = pbd.partner_id
-         JOIN banks b ON pbd.bank_id = b.id AND b.is_active = 1
-         WHERE r.id IN (${placeholders}) 
-           AND r.status = 'approved' 
-           AND r.payout_status = 'unpaid'
-           AND pbd.account_number IS NOT NULL AND TRIM(pbd.account_number) != ''`
-      )
-      .bind(...referralIds)
-      .all<Referral>();
+    // Chunking to 250 items per query to prevent SQLite binding variable limit (default 999)
+    const chunkSize = 250;
+    const validLeads: Referral[] = [];
 
-    const validLeads = referrals.results || [];
+    for (let i = 0; i < uniqueIds.length; i += chunkSize) {
+      const chunk = uniqueIds.slice(i, i + chunkSize);
+      const placeholders = chunk.map(() => '?').join(',');
+      const referrals = await this.db
+        .prepare(
+          `SELECT r.* 
+           FROM referrals r
+           JOIN users u ON r.partner_id = u.id
+           JOIN partner_bank_details pbd ON u.id = pbd.partner_id
+           JOIN banks b ON pbd.bank_id = b.id AND b.is_active = 1
+           WHERE r.id IN (${placeholders}) 
+             AND r.status = 'approved' 
+             AND r.payout_status = 'unpaid'
+             AND pbd.account_number IS NOT NULL AND TRIM(pbd.account_number) != ''`
+        )
+        .bind(...chunk)
+        .all<Referral>();
+
+      if (referrals.results) {
+        validLeads.push(...referrals.results);
+      }
+    }
+
     if (validLeads.length === 0) return null;
 
     const validIds = validLeads.map((l) => l.id);
-    const validPlaceholders = validIds.map(() => '?').join(',');
-
     const itemCount = validLeads.length;
     const totalAmountEtb = validLeads.reduce((acc, lead) => acc + (lead.commission_earned_etb || 0), 0);
 
@@ -476,7 +488,7 @@ export class DbClient {
     const batchReference = `EP-BATCH-${todayStr}-${randomSuffix}`;
     const createdAt = new Date().toISOString();
 
-    // Prepare atomic statements
+    // Prepare atomic statements: exactly 1 INSERT into payout_batches, followed by chunked UPDATE(s) for referrals
     const batchInsertStmt = this.db
       .prepare(
         `INSERT INTO payout_batches (id, batch_reference, total_amount_etb, item_count, status, created_by_id, created_at)
@@ -484,16 +496,24 @@ export class DbClient {
       )
       .bind(batchId, batchReference, totalAmountEtb, itemCount, adminId, createdAt);
 
-    const referralUpdateStmt = this.db
-      .prepare(
-        `UPDATE referrals 
-         SET payout_status = 'processing', payout_batch_id = ?
-         WHERE id IN (${validPlaceholders}) AND status = 'approved' AND payout_status = 'unpaid'`
-      )
-      .bind(batchId, ...validIds);
+    const atomicStatements: D1PreparedStatement[] = [batchInsertStmt];
 
-    // Execute atomically via Cloudflare D1 batch
-    await this.db.batch([batchInsertStmt, referralUpdateStmt]);
+    for (let i = 0; i < validIds.length; i += chunkSize) {
+      const chunk = validIds.slice(i, i + chunkSize);
+      const validPlaceholders = chunk.map(() => '?').join(',');
+      atomicStatements.push(
+        this.db
+          .prepare(
+            `UPDATE referrals 
+             SET payout_status = 'processing', payout_batch_id = ?
+             WHERE id IN (${validPlaceholders}) AND status = 'approved' AND payout_status = 'unpaid'`
+          )
+          .bind(batchId, ...chunk)
+      );
+    }
+
+    // Execute atomically via Cloudflare D1 batch (executes within a single transaction)
+    await this.db.batch(atomicStatements);
 
     return {
       id: batchId,
